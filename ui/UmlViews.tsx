@@ -3,16 +3,18 @@ import type { FileChange, Review, Section } from "./types";
 import { statusSymbol } from "./types";
 import {
   changedPrefix,
+  dataModelOf,
   groupNames,
   layer,
   moduleKey,
   routeEdge,
   sequenceOf,
   symbolsOf,
+  testMapOf,
   worstStatus,
 } from "./uml";
 
-export type UmlMode = "sequence" | "class" | "usecase";
+export type UmlMode = "sequence" | "class" | "usecase" | "data" | "tests";
 type Props = {
   review: Review;
   section?: Section;
@@ -445,8 +447,227 @@ export function UseCaseView({ review, section, zoom, onSelectSection }: Props) {
   );
 }
 
+/** Tables and models this section creates or changes, with foreign keys. */
+export function DataView({ review, section, selected, zoom, onSelect }: Props) {
+  const files = review.files.filter((f) => section?.files.includes(f.path));
+  const { entities, links } = dataModelOf(files);
+  if (!entities.length)
+    return <Empty zoom={zoom} text="No tables or models in this section." />;
+  const MAX = 8;
+  const boxes = entities.slice(0, 9).map((e) => ({
+    e,
+    h:
+      50 +
+      Math.max(
+        1,
+        Math.min(e.columns.length, MAX) + (e.columns.length > MAX ? 1 : 0),
+      ) *
+        20 +
+      10,
+    x: 0,
+    y: 0,
+    channel: 0,
+  }));
+  let y = 24;
+  for (let i = 0; i < boxes.length; i += 3) {
+    const row = boxes.slice(i, i + 3);
+    const rowH = Math.max(...row.map((b) => b.h));
+    row.forEach((b, c) => {
+      b.x = 24 + c * 320;
+      b.y = y;
+      b.channel = y + rowH + 25;
+    });
+    y += rowH + 50;
+  }
+  const byKey = new Map(boxes.map((b) => [b.e.key, b]));
+  const fileOf = new Map(review.files.map((f) => [f.path, f]));
+  return (
+    <Frame
+      label="Data model diagram"
+      width={Math.max(680, Math.min(3, boxes.length) * 320 + 16)}
+      height={Math.max(220, y)}
+      zoom={zoom}
+    >
+      {links.map((l, i) => {
+        const a = byKey.get(l.from),
+          b = byKey.get(l.to);
+        if (!a || !b) return null;
+        return (
+          <path
+            key={i}
+            className="relation active"
+            d={routeEdge(
+              { x: a.x, y: a.y + 24, w: 288, channel: a.channel },
+              { x: b.x, y: b.y + 24, w: 288, channel: b.channel },
+              (i % 5) - 2,
+            )}
+            markerEnd="url(#arrow)"
+          >
+            <title>
+              {l.label} references {l.to}
+            </title>
+          </path>
+        );
+      })}
+      {boxes.map(({ e, h, x, y }) => {
+        const body = (
+          <>
+            <rect x={x} y={y} width={288} height={h} rx="8" />
+            <text x={x + 14} y={y + 21} className="uml-stereo">
+              {e.state === "unchanged" ? "referenced table" : "table"}
+            </text>
+            <text x={x + 14} y={y + 38} className="node-name">
+              {statusSymbol[e.state]} {clip(e.name, 30)}
+            </text>
+            <line
+              x1={x}
+              y1={y + 48}
+              x2={x + 288}
+              y2={y + 48}
+              className="uml-divider"
+            />
+            {e.columns.slice(0, MAX).map((c, i) => (
+              <text
+                key={c.name + i}
+                x={x + 14}
+                y={y + 68 + i * 20}
+                className={`uml-member ${c.state}`}
+              >
+                {c.state === "unchanged" ? "  " : statusSymbol[c.state] + " "}
+                {clip(c.name, 18)}
+                <tspan className="uml-type"> {clip(c.type, 14)}</tspan>
+              </text>
+            ))}
+            {e.columns.length > MAX && (
+              <text x={x + 14} y={y + 68 + MAX * 20} className="uml-muted">
+                +{e.columns.length - MAX} more
+              </text>
+            )}
+            {!e.columns.length && (
+              <text x={x + 14} y={y + 68} className="uml-muted">
+                Outside this PR
+              </text>
+            )}
+          </>
+        );
+        const file = e.file ? fileOf.get(e.file) : undefined;
+        return file ? (
+          <Clickable
+            key={e.key}
+            file={{
+              ...file,
+              status: e.state === "unchanged" ? file.status : e.state,
+            }}
+            selected={selected}
+            onSelect={onSelect}
+          >
+            {body}
+          </Clickable>
+        ) : (
+          <g key={e.key} className="file-node unchanged nearby">
+            {body}
+          </g>
+        );
+      })}
+    </Frame>
+  );
+}
+
+/** Changed source files on the left, the changed tests that exercise them on the right. */
+export function TestsView({
+  review,
+  section,
+  selected,
+  zoom,
+  onSelect,
+}: Props) {
+  if (!section)
+    return <Empty zoom={zoom} text="Select a section to see its tests." />;
+  const { sources, tests, pairs } = testMapOf(review, section);
+  if (!sources.length)
+    return <Empty zoom={zoom} text="No source files in this section." />;
+  const rows = Math.max(sources.length, tests.length);
+  const at = (i: number) => 64 + i * 66;
+  const height = at(rows) + 10;
+  const sIndex = new Map(sources.map((f, i) => [f.path, i]));
+  const tIndex = new Map(tests.map((f, i) => [f.path, i]));
+  const untested = sources.filter(
+    (s) => !pairs.some((p) => p.source === s.path),
+  );
+  return (
+    <Frame label="Test map" width={680} height={height} zoom={zoom}>
+      <text x={24} y={36} className="module-title">
+        Changed code
+      </text>
+      <text x={400} y={36} className="module-title">
+        Changed tests
+      </text>
+      {pairs.map((p, i) => {
+        const a = sIndex.get(p.source)!,
+          b = tIndex.get(p.target)!;
+        const y1 = at(a) + 26,
+          y2 = at(b) + 26;
+        return (
+          <path
+            key={i}
+            className="relation active"
+            d={`M280,${y1} C340,${y1} 340,${y2} 400,${y2}`}
+            markerEnd="url(#arrow)"
+          />
+        );
+      })}
+      {sources.map((f, i) => {
+        const tested = !untested.includes(f);
+        return (
+          <Clickable
+            key={f.path}
+            file={f}
+            selected={selected}
+            onSelect={onSelect}
+          >
+            <rect x={24} y={at(i)} width={256} height={52} rx="8" />
+            <text x={38} y={at(i) + 21} className="node-name">
+              {statusSymbol[f.status]} {clip(f.path.split("/").at(-1)!, 26)}
+            </text>
+            <text
+              x={38}
+              y={at(i) + 39}
+              className={tested ? "node-path" : "node-path untested"}
+            >
+              {tested ? layer(f.path).name : "No changed test covers this"}
+            </text>
+          </Clickable>
+        );
+      })}
+      {tests.map((f, i) => (
+        <Clickable
+          key={f.path}
+          file={f}
+          selected={selected}
+          onSelect={onSelect}
+        >
+          <rect x={400} y={at(i)} width={256} height={52} rx="8" />
+          <text x={414} y={at(i) + 21} className="node-name">
+            {statusSymbol[f.status]} {clip(f.path.split("/").at(-1)!, 26)}
+          </text>
+          <text x={414} y={at(i) + 39} className="node-path">
+            {clip(f.path.split("/").slice(0, -1).join("/"), 30)}
+          </text>
+        </Clickable>
+      ))}
+      {!tests.length && (
+        <text x={400} y={at(0) + 30} className="uml-muted">
+          This PR changes no tests.
+        </text>
+      )}
+    </Frame>
+  );
+}
+
 export function UmlView({ mode, ...props }: Props & { mode: UmlMode }) {
   if (mode === "sequence") return <SequenceView {...props} />;
   if (mode === "class") return <ClassView {...props} />;
+  if (mode === "data") return <DataView {...props} />;
+  if (mode === "tests") return <TestsView {...props} />;
   return <UseCaseView {...props} />;
 }

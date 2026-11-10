@@ -150,6 +150,12 @@ def put_progress(review_id: str, body: ReviewProgress) -> ReviewProgress:
         raise HTTPException(422, str(exc)) from exc
 
 
+@app.get("/mcp-preview", response_class=HTMLResponse, include_in_schema=False)
+def mcp_preview():
+    """A local stand-in for a chat host, showing the MCP App as Claude or ChatGPT would embed it."""
+    return HTMLResponse((Path(__file__).parent / "host_preview.html").read_text(encoding="utf-8"))
+
+
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def index():
     path = Path(__file__).parent / "static" / "index.html"

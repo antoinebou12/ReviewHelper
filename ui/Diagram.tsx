@@ -193,6 +193,8 @@ export function Diagram({
             {
               topology: "Project topology",
               c4: "C4-style container map",
+              data: "Data model · tables and models changed in this section",
+              tests: "Tests · which changed tests cover this section's code",
               sequence: "Sequence · how this section's files call each other",
               class: "Class view · functions and types changed in this section",
               usecase: "Use cases · each section as a user-facing feature",
@@ -464,7 +466,11 @@ export function Diagram({
               ? "Definitions found in the diff · + added, ~ changed, − removed"
               : mode === "sequence"
                 ? "Order follows UI → API → service → data; dashed steps are inferred"
-                : "Select a use case to open its section"
+                : mode === "data"
+                  ? "From SQL and ORM changes · arrows are foreign keys"
+                  : mode === "tests"
+                    ? "Matched by imports, relationships and file names"
+                    : "Select a use case to open its section"
             : omitted > 0
               ? `${omitted} more paths; use the file list for all changes.`
               : mode === "c4"

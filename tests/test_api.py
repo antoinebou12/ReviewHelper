@@ -89,3 +89,9 @@ def test_vercel_default_store(monkeypatch):
     monkeypatch.delenv("REVIEW_HELPER_DB_PATH")
     monkeypatch.setenv("VERCEL", "1")
     assert str(store.database_path()).replace("\\", "/") == "/tmp/review-helper.sqlite3"
+
+
+def test_mcp_host_preview_page(client):
+    response = client.get("/mcp-preview")
+    assert response.status_code == 200
+    assert "ui/initialize" in response.text and 'src="/"' in response.text

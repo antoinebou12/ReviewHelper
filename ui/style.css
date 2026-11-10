@@ -2040,3 +2040,174 @@ progress::-webkit-progress-value {
 .node-reason {
   fill: var(--accent);
 }
+
+.uml-type {
+  fill: var(--muted);
+}
+.node-path.untested {
+  fill: var(--red);
+}
+
+/* One feature: no section list, the review takes the full width. */
+.single-section .workspace {
+  grid-template-columns: minmax(0, 1fr) 290px;
+}
+@media (max-width: 1250px) {
+  .single-section .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .single-section .inspector {
+    grid-column: 1;
+  }
+}
+
+/* Inside a chat: a compact card with the map first. Fullscreen keeps the full workspace. */
+.embedded .pr-header {
+  padding-top: 18px;
+}
+.compact .pr-header {
+  padding: 14px 18px 0;
+}
+.compact .pr-title-row {
+  margin: 8px 0 10px;
+  gap: 12px;
+  align-items: center;
+  flex-direction: row;
+}
+.compact h1 {
+  font-size: 19px;
+  line-height: 1.3;
+}
+.compact .pr-meta {
+  font-size: 11px;
+  margin-top: 4px;
+}
+.compact .pr-actions .button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.compact .summary-strip {
+  height: 38px;
+  min-height: 0;
+  padding: 0;
+  gap: 14px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.compact .summary-strip .grouping-note {
+  display: none;
+}
+.compact .workspace,
+.compact.single-section .workspace {
+  display: block;
+  min-height: 0;
+}
+.compact .sidebar {
+  padding: 10px 18px;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.compact .sidebar-title {
+  display: none;
+}
+.compact .search-box {
+  margin-bottom: 8px;
+}
+.compact .section-navigation {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.compact .section-button {
+  flex: none;
+  width: auto;
+  max-width: 240px;
+  padding: 7px 10px;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.compact .section-button.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.compact .section-text > span,
+.compact .section-chevron,
+.compact .section-statuses {
+  display: none !important;
+}
+.compact .section-text strong {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.compact .section-number {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+.compact .review-main {
+  padding: 16px 18px 0;
+}
+.compact .section-heading h2 {
+  font-size: 17px;
+}
+.compact .section-heading p {
+  margin-bottom: 4px;
+}
+.compact .map-legend {
+  padding: 10px 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.compact .map-legend .legend-hint {
+  display: none;
+}
+.compact .view-toolbar {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.compact .canvas-scroll {
+  max-height: 520px;
+}
+/* Never squeeze the view tabs; the diagram switch wraps below them instead. */
+.view-toolbar {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.view-tabs {
+  flex: none;
+}
+.view-tabs button {
+  flex: none;
+  white-space: nowrap;
+}
+.view-toolbar > .segmented {
+  margin-left: auto;
+  margin-bottom: 6px;
+}
+.compact .view-toolbar > .segmented {
+  margin-left: 0;
+}
+/* A chat card is narrow but not a phone: keep readable tab labels and counts. */
+.compact .view-tabs {
+  gap: 18px;
+}
+.compact .view-tabs button {
+  font-size: 12px;
+  gap: 6px;
+}
+.compact .view-tabs button svg {
+  display: inline;
+}
+.compact .view-tabs button > span {
+  display: inline;
+}

@@ -306,3 +306,54 @@ test("diffs switch to side by side and comments render Markdown safely", async (
   await expect(discussion).not.toContainText("alert(1)");
   await expect(discussion.locator("script")).toHaveCount(0);
 });
+
+test("only diagrams with content are offered, including data model and tests", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const types = page.getByRole("group", { name: "Diagram type" });
+  await types.getByRole("button", { name: "Data model" }).click();
+  const data = page.getByRole("group", { name: "Data model diagram" });
+  await expect(data.getByText("+ Collection", { exact: true })).toBeVisible();
+  await expect(data.getByText("referenced table")).toBeVisible();
+  await types.getByRole("button", { name: "Tests" }).click();
+  await expect(
+    page
+      .getByRole("group", { name: "Test map" })
+      .getByRole("button", { name: "tests/api/test_collections.py, added" }),
+  ).toBeVisible();
+  // A section with one deleted file has no flow, data model or tests to draw.
+  await page
+    .getByRole("button", { name: /Retire the local save button/ })
+    .click();
+  for (const name of ["Sequence", "Data model", "Tests"])
+    await expect(types.getByRole("button", { name, exact: true })).toHaveCount(
+      0,
+    );
+  await expect(
+    page.getByRole("group", { name: "Project change map" }),
+  ).toBeVisible();
+});
+
+test("a one-feature PR gets a smaller interface", async ({ page }) => {
+  const review = await (await page.request.get("/api/demo")).json();
+  const keep = review.sections[2];
+  review.sections = [keep];
+  review.files = review.files.filter((f: any) => keep.files.includes(f.path));
+  review.comments = [];
+  review.relationships = [];
+  await page.route("**/api/demo", (route) => route.fulfill({ json: review }));
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: keep.title })).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Review sections" }),
+  ).toHaveCount(0);
+  await expect(page.getByText(/SECTION 01 OF 01/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Comments/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Next section/ })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("textbox", { name: "Search sections" }),
+  ).toHaveCount(0);
+});

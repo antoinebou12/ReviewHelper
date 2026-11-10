@@ -15,9 +15,12 @@ import {
   Link2,
   LoaderCircle,
   Map,
+  Maximize2,
+  Minimize2,
   MessageSquare,
   Moon,
   Search,
+  Send,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -26,13 +29,18 @@ import {
 } from "lucide-react";
 import {
   api,
+  askInChat,
   connectHost,
   embedded,
   loadReview,
+  onHostView,
   progress,
   setAccessToken,
+  setDisplayMode,
   tellHost,
+  type HostView,
 } from "./api";
+import { availableDiagrams } from "./uml";
 import { Diagram, type DiagramMode } from "./Diagram";
 import { Diff } from "./Diff";
 import { Markdown } from "./Markdown";
@@ -193,6 +201,8 @@ function App() {
       .then(setReviewed)
       .catch((e) => setError(e.message));
   }
+  const [hostView, setHostView] = useState<HostView | null>(null);
+  useEffect(() => (embedded ? onHostView(setHostView) : undefined), []);
   useEffect(() => {
     if (embedded) {
       connectHost(acceptReview, setError);
@@ -242,6 +252,15 @@ function App() {
         .toLowerCase()
         .includes(query.toLowerCase()),
     ) ?? [];
+  // Inside a chat the app is a compact card; fullscreen gets the full workspace.
+  const compact = embedded && hostView?.displayMode !== "fullscreen";
+  // Small PRs get a smaller interface: no section list for one feature, no search for three or fewer.
+  const single = (review?.sections.length ?? 0) <= 1;
+  const showSearch = (review?.sections.length ?? 0) >= 4;
+  const diagrams = review ? availableDiagrams(review, section) : [];
+  const activeDiagram = (
+    diagrams.includes(diagram) ? diagram : (diagrams[0] ?? "topology")
+  ) as DiagramMode;
   const allDone =
     !!review?.sections.length && reviewed.length === review.sections.length;
 
@@ -302,54 +321,58 @@ function App() {
       : "";
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${embedded ? "embedded" : ""} ${compact ? "compact" : ""} ${single ? "single-section" : ""}`}
+    >
       <a className="skip-link" href="#review-content">
         Skip to review
       </a>
-      <header className="app-header">
-        <a className="brand" href="/" aria-label="Review Helper home">
-          <span className="brand-icon">
-            <Layers3 size={21} strokeWidth={1.8} />
-          </span>
-          <span>
-            review<span className="brand-light">helper</span>
-          </span>
-          <span className="beta">LOCAL</span>
-        </a>
-        <div className="header-right">
-          <span className="local-status">
-            <span className="live-dot" /> Your review workspace
-          </span>
-          <button
-            className="icon-button"
-            title="Toggle theme"
-            aria-label={
-              theme === "light"
-                ? "Switch to dark theme"
-                : "Switch to light theme"
-            }
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-          >
-            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Settings"
-            onClick={showSettings}
-          >
-            <Settings2 size={18} />
-          </button>
-          <button
-            className="button primary small"
-            onClick={() => {
-              setError("");
-              setModal("open");
-            }}
-          >
-            <PlusIcon /> Open a PR
-          </button>
-        </div>
-      </header>
+      {!embedded && (
+        <header className="app-header">
+          <a className="brand" href="/" aria-label="Review Helper home">
+            <span className="brand-icon">
+              <Layers3 size={21} strokeWidth={1.8} />
+            </span>
+            <span>
+              review<span className="brand-light">helper</span>
+            </span>
+            <span className="beta">LOCAL</span>
+          </a>
+          <div className="header-right">
+            <span className="local-status">
+              <span className="live-dot" /> Your review workspace
+            </span>
+            <button
+              className="icon-button"
+              title="Toggle theme"
+              aria-label={
+                theme === "light"
+                  ? "Switch to dark theme"
+                  : "Switch to light theme"
+              }
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            >
+              {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+            <button
+              className="icon-button"
+              aria-label="Settings"
+              onClick={showSettings}
+            >
+              <Settings2 size={18} />
+            </button>
+            <button
+              className="button primary small"
+              onClick={() => {
+                setError("");
+                setModal("open");
+              }}
+            >
+              <PlusIcon /> Open a PR
+            </button>
+          </div>
+        </header>
+      )}
       {error && (
         <div className="error-banner" role="alert">
           <span>{error}</span>
@@ -414,15 +437,46 @@ function App() {
                     Open original <ExternalLink size={14} />
                   </a>
                 )}
-                <button
-                  className="button"
-                  onClick={() => {
-                    setCopied(false);
-                    setModal("assist");
-                  }}
-                >
-                  <Sparkles size={15} /> Review with AI
-                </button>
+                {embedded && hostView?.canMessage && section ? (
+                  <button
+                    className="button"
+                    onClick={() =>
+                      askInChat(prompt).catch((e) => setError(e.message))
+                    }
+                  >
+                    <Send size={14} /> Ask to review
+                  </button>
+                ) : (
+                  <button
+                    className="button"
+                    onClick={() => {
+                      setCopied(false);
+                      setModal("assist");
+                    }}
+                  >
+                    <Sparkles size={15} /> Review with AI
+                  </button>
+                )}
+                {embedded && hostView?.canExpand && (
+                  <button
+                    className="icon-button"
+                    aria-label={
+                      compact ? "Expand to fullscreen" : "Back to chat"
+                    }
+                    title={compact ? "Expand" : "Back to chat"}
+                    onClick={() =>
+                      setDisplayMode(compact ? "fullscreen" : "inline").catch(
+                        (e) => setError(e.message),
+                      )
+                    }
+                  >
+                    {compact ? (
+                      <Maximize2 size={16} />
+                    ) : (
+                      <Minimize2 size={16} />
+                    )}
+                  </button>
+                )}
               </div>
             </div>
             <div className="summary-strip">
@@ -468,55 +522,59 @@ function App() {
             </details>
           )}
           <div className="workspace">
-            <aside className="sidebar" aria-label="Review sections">
-              <div className="sidebar-title">
-                <h2>Review sections</h2>
-                <span className="count-pill">{review.sections.length}</span>
-              </div>
-              <label className="search-box">
-                <Search size={15} />
-                <input
-                  ref={search}
-                  aria-label="Search sections"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search changes…"
-                />
-                <kbd>/</kbd>
-              </label>
-              <div className="section-navigation">
-                {sections.length ? (
-                  sections.map((s) => {
-                    const index = review.sections.indexOf(s);
-                    const count = review.comments.filter(
-                      (c) => c.path && s.files.includes(c.path),
-                    ).length;
-                    return (
-                      <button
-                        key={s.id}
-                        className={`section-button ${sectionId === s.id ? "active" : ""}`}
-                        onClick={() => selectSection(s.id)}
-                        aria-current={sectionId === s.id ? "step" : undefined}
-                      >
-                        <span
-                          className={`section-number ${reviewed.includes(s.id) ? "complete" : ""}`}
+            {!single && (
+              <aside className="sidebar" aria-label="Review sections">
+                <div className="sidebar-title">
+                  <h2>Review sections</h2>
+                  <span className="count-pill">{review.sections.length}</span>
+                </div>
+                {showSearch && (
+                  <label className="search-box">
+                    <Search size={15} />
+                    <input
+                      ref={search}
+                      aria-label="Search sections"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search changes…"
+                    />
+                    <kbd>/</kbd>
+                  </label>
+                )}
+                <div className="section-navigation">
+                  {sections.length ? (
+                    sections.map((s) => {
+                      const index = review.sections.indexOf(s);
+                      const count = review.comments.filter(
+                        (c) => c.path && s.files.includes(c.path),
+                      ).length;
+                      return (
+                        <button
+                          key={s.id}
+                          className={`section-button ${sectionId === s.id ? "active" : ""}`}
+                          onClick={() => selectSection(s.id)}
+                          aria-current={sectionId === s.id ? "step" : undefined}
                         >
-                          {reviewed.includes(s.id) ? (
-                            <Check size={13} />
-                          ) : (
-                            String(index + 1).padStart(2, "0")
-                          )}
-                        </span>
-                        <span className="section-text">
-                          <strong>{s.title}</strong>
-                          <span>
-                            {s.files.length} files{" "}
-                            <span className="dot-separator">·</span> {count}{" "}
-                            {count === 1 ? "comment" : "comments"}
+                          <span
+                            className={`section-number ${reviewed.includes(s.id) ? "complete" : ""}`}
+                          >
+                            {reviewed.includes(s.id) ? (
+                              <Check size={13} />
+                            ) : (
+                              String(index + 1).padStart(2, "0")
+                            )}
                           </span>
-                          <span className="section-statuses">
-                            {(["added", "modified", "deleted"] as Status[]).map(
-                              (status) => {
+                          <span className="section-text">
+                            <strong>{s.title}</strong>
+                            <span>
+                              {s.files.length} files{" "}
+                              <span className="dot-separator">·</span> {count}{" "}
+                              {count === 1 ? "comment" : "comments"}
+                            </span>
+                            <span className="section-statuses">
+                              {(
+                                ["added", "modified", "deleted"] as Status[]
+                              ).map((status) => {
                                 const count = review.files.filter(
                                   (f) =>
                                     s.files.includes(f.path) &&
@@ -532,57 +590,63 @@ function App() {
                                     {count}
                                   </span>
                                 ) : null;
-                              },
-                            )}
+                              })}
+                            </span>
                           </span>
-                        </span>
-                        <ChevronRight className="section-chevron" size={15} />
+                          <ChevronRight className="section-chevron" size={15} />
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="empty-small">
+                      No sections match “{query}”.
+                      <button
+                        className="text-button"
+                        onClick={() => setQuery("")}
+                      >
+                        Clear search
                       </button>
-                    );
-                  })
-                ) : (
-                  <div className="empty-small">
-                    No sections match “{query}”.
-                    <button
-                      className="text-button"
-                      onClick={() => setQuery("")}
-                    >
-                      Clear search
-                    </button>
+                    </div>
+                  )}
+                </div>
+                {!compact && (
+                  <div className="sidebar-bottom">
+                    <div className="progress-label">
+                      <span>
+                        {allDone ? "Review complete" : "Your progress"}
+                      </span>
+                      <strong>
+                        {reviewed.length} / {review.sections.length}
+                      </strong>
+                    </div>
+                    <progress
+                      value={reviewed.length}
+                      max={review.sections.length || 1}
+                      aria-label="Sections reviewed"
+                    />
+                    <p>
+                      {allDone
+                        ? "All sections marked as reviewed locally."
+                        : "Take it one feature at a time."}
+                    </p>
+                    <div className="local-note">
+                      <ShieldCheck size={14} /> Progress stays in this workspace
+                    </div>
                   </div>
                 )}
-              </div>
-              <div className="sidebar-bottom">
-                <div className="progress-label">
-                  <span>{allDone ? "Review complete" : "Your progress"}</span>
-                  <strong>
-                    {reviewed.length} / {review.sections.length}
-                  </strong>
-                </div>
-                <progress
-                  value={reviewed.length}
-                  max={review.sections.length || 1}
-                  aria-label="Sections reviewed"
-                />
-                <p>
-                  {allDone
-                    ? "All sections marked as reviewed locally."
-                    : "Take it one feature at a time."}
-                </p>
-                <div className="local-note">
-                  <ShieldCheck size={14} /> Progress stays in this workspace
-                </div>
-              </div>
-            </aside>
+              </aside>
+            )}
             <main id="review-content" className="review-main">
               <div className="section-heading">
-                <div className="eyebrow">
-                  SECTION{" "}
-                  {String(
-                    review.sections.findIndex((s) => s.id === sectionId) + 1,
-                  ).padStart(2, "0")}{" "}
-                  OF {String(review.sections.length).padStart(2, "0")}
-                </div>
+                {!single && (
+                  <div className="eyebrow">
+                    SECTION{" "}
+                    {String(
+                      review.sections.findIndex((s) => s.id === sectionId) + 1,
+                    ).padStart(2, "0")}{" "}
+                    OF {String(review.sections.length).padStart(2, "0")}
+                  </div>
+                )}
                 <div className="section-heading-row">
                   <h2>{section?.title ?? "No changed files"}</h2>
                   <button
@@ -621,14 +685,16 @@ function App() {
                   >
                     <Code2 size={16} /> Diffs <span>{files.length}</span>
                   </button>
-                  <button
-                    aria-pressed={view === "comments"}
-                    className={view === "comments" ? "active" : ""}
-                    onClick={() => setView("comments")}
-                  >
-                    <MessageSquare size={14} /> Comments{" "}
-                    <span>{comments.length}</span>
-                  </button>
+                  {review.comments.length > 0 && (
+                    <button
+                      aria-pressed={view === "comments"}
+                      className={view === "comments" ? "active" : ""}
+                      onClick={() => setView("comments")}
+                    >
+                      <MessageSquare size={14} /> Comments{" "}
+                      <span>{comments.length}</span>
+                    </button>
+                  )}
                   {!!review.issues?.length && (
                     <button
                       aria-pressed={view === "jira"}
@@ -640,8 +706,8 @@ function App() {
                     </button>
                   )}
                 </nav>
-                {view === "map" && (
-                  <div className="segmented" aria-label="Diagram type">
+                {view === "map" && diagrams.length > 1 && (
+                  <div className="segmented" role="group" aria-label="Diagram type">
                     {(
                       [
                         ["topology", "Topology"],
@@ -649,17 +715,21 @@ function App() {
                         ["usecase", "Use case"],
                         ["sequence", "Sequence"],
                         ["class", "Class"],
+                        ["data", "Data model"],
+                        ["tests", "Tests"],
                       ] as [DiagramMode, string][]
-                    ).map(([value, label]) => (
-                      <button
-                        key={value}
-                        aria-pressed={diagram === value}
-                        className={diagram === value ? "active" : ""}
-                        onClick={() => setDiagram(value)}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                    )
+                      .filter(([value]) => diagrams.includes(value))
+                      .map(([value, label]) => (
+                        <button
+                          key={value}
+                          aria-pressed={activeDiagram === value}
+                          className={activeDiagram === value ? "active" : ""}
+                          onClick={() => setDiagram(value)}
+                        >
+                          {label}
+                        </button>
+                      ))}
                   </div>
                 )}
               </div>
@@ -678,14 +748,20 @@ function App() {
                       Highlighted files belong to this section
                     </span>
                   </div>
-                  <Diagram
-                    review={review}
-                    section={section}
-                    selected={selectedFile}
-                    mode={diagram}
-                    onSelect={selectFile}
-                    onSelectSection={selectSection}
-                  />
+                  {diagrams.length ? (
+                    <Diagram
+                      review={review}
+                      section={section}
+                      selected={selectedFile}
+                      mode={activeDiagram}
+                      onSelect={selectFile}
+                      onSelectSection={selectSection}
+                    />
+                  ) : (
+                    <div className="empty-small">
+                      This pull request has no file changes to map.
+                    </div>
+                  )}
                   {file && (
                     <div className="selected-diff">
                       <div className="selected-diff-title">
@@ -727,91 +803,99 @@ function App() {
               ) : (
                 <JiraTable review={review} />
               )}
-              <div className="section-footer">
-                <span>
-                  <BookOpen size={14} />{" "}
-                  {section?.source === "heuristic"
-                    ? "Confirm this suggested grouping against the diff"
-                    : "Follow the feature across your project"}
-                </span>
-                <button
-                  className="text-button"
-                  disabled={
-                    !section ||
-                    review.sections.indexOf(section) ===
-                      review.sections.length - 1
-                  }
-                  onClick={() =>
-                    section &&
-                    selectSection(
-                      review.sections[review.sections.indexOf(section) + 1].id,
-                    )
-                  }
-                >
-                  Next section <ArrowRight size={14} />
-                </button>
-              </div>
-            </main>
-            <aside className="inspector" aria-label="Section details">
-              <div className="inspector-header">
-                <Layers3 size={16} />
-                <h2>In this section</h2>
-              </div>
-              <p className="inspector-intro">{section?.rationale}</p>
-              <h3>
-                Changed files <span>{files.length}</span>
-              </h3>
-              <div className="file-list">
-                {files.map((f) => (
+              {!single && (
+                <div className="section-footer">
+                  <span>
+                    <BookOpen size={14} />{" "}
+                    {section?.source === "heuristic"
+                      ? "Confirm this suggested grouping against the diff"
+                      : "Follow the feature across your project"}
+                  </span>
                   <button
-                    key={f.path}
-                    className={selectedFile === f.path ? "selected" : ""}
-                    onClick={() => {
-                      selectFile(f.path);
-                      setView("map");
-                    }}
-                  >
-                    <span className={`file-status ${f.status}`}>
-                      {statusSymbol[f.status]}
-                    </span>
-                    <span>
-                      <strong>{f.path.split("/").at(-1)}</strong>
-                      <small>{f.path.split("/").slice(0, -1).join("/")}</small>
-                    </span>
-                    <ChevronRight size={12} />
-                  </button>
-                ))}
-              </div>
-              {selectedFile && !file && (
-                <p className="context-note">
-                  {selectedFile} is unchanged context. It has no PR diff.
-                </p>
-              )}
-              <div className="inspector-comments-title">
-                <h3>
-                  Conversation <span>{comments.length}</span>
-                </h3>
-                <MessageSquare size={14} />
-              </div>
-              <Comments
-                comments={
-                  file
-                    ? comments.filter(
-                        (c) =>
-                          c.path === file.path || c.path === file.previous_path,
+                    className="text-button"
+                    disabled={
+                      !section ||
+                      review.sections.indexOf(section) ===
+                        review.sections.length - 1
+                    }
+                    onClick={() =>
+                      section &&
+                      selectSection(
+                        review.sections[review.sections.indexOf(section) + 1]
+                          .id,
                       )
-                    : comments
-                }
-                demo={review.provider === "demo"}
-              />
-              <div className="snapshot">
-                <GitBranch size={14} />
-                <span>
-                  Snapshot <code>{review.head_sha.slice(0, 7)}</code>
-                  <small>Reopen the PR URL to fetch new changes.</small>
-                </span>
-              </div>
-            </aside>
+                    }
+                  >
+                    Next section <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
+            </main>
+            {!compact && (
+              <aside className="inspector" aria-label="Section details">
+                <div className="inspector-header">
+                  <Layers3 size={16} />
+                  <h2>In this section</h2>
+                </div>
+                <p className="inspector-intro">{section?.rationale}</p>
+                <h3>
+                  Changed files <span>{files.length}</span>
+                </h3>
+                <div className="file-list">
+                  {files.map((f) => (
+                    <button
+                      key={f.path}
+                      className={selectedFile === f.path ? "selected" : ""}
+                      onClick={() => {
+                        selectFile(f.path);
+                        setView("map");
+                      }}
+                    >
+                      <span className={`file-status ${f.status}`}>
+                        {statusSymbol[f.status]}
+                      </span>
+                      <span>
+                        <strong>{f.path.split("/").at(-1)}</strong>
+                        <small>
+                          {f.path.split("/").slice(0, -1).join("/")}
+                        </small>
+                      </span>
+                      <ChevronRight size={12} />
+                    </button>
+                  ))}
+                </div>
+                {selectedFile && !file && (
+                  <p className="context-note">
+                    {selectedFile} is unchanged context. It has no PR diff.
+                  </p>
+                )}
+                <div className="inspector-comments-title">
+                  <h3>
+                    Conversation <span>{comments.length}</span>
+                  </h3>
+                  <MessageSquare size={14} />
+                </div>
+                <Comments
+                  comments={
+                    file
+                      ? comments.filter(
+                          (c) =>
+                            c.path === file.path ||
+                            c.path === file.previous_path,
+                        )
+                      : comments
+                  }
+                  demo={review.provider === "demo"}
+                />
+                <div className="snapshot">
+                  <GitBranch size={14} />
+                  <span>
+                    Snapshot <code>{review.head_sha.slice(0, 7)}</code>
+                    <small>Reopen the PR URL to fetch new changes.</small>
+                  </span>
+                </div>
+              </aside>
+            )}
           </div>
         </>
       )}

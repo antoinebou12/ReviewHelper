@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP host preview · Review Helper</title>
+    <style>
+      :root {
+        --bg: #f4f4f1;
+        --panel: #ffffff;
+        --text: #1f2328;
+        --muted: #6b7079;
+        --line: #e4e4df;
+        --accent: #2e695b;
+        --bubble: #ecebe6;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+      }
+      :root[data-theme="dark"] {
+        --bg: #1d1d1b;
+        --panel: #262624;
+        --text: #ecebe6;
+        --muted: #a3a29c;
+        --line: #3a3a37;
+        --accent: #9bd4bd;
+        --bubble: #31312e;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); }
+      .bar {
+        position: sticky; top: 0; z-index: 2;
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .bar strong { margin-right: auto; }
+      .bar input {
+        flex: 1 1 280px; min-width: 0; padding: 7px 10px; border-radius: 8px;
+        border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+      }
+      button {
+        font: inherit; font-size: 12px; padding: 7px 11px; border-radius: 8px; cursor: pointer;
+        border: 1px solid var(--line); background: var(--panel); color: var(--text);
+      }
+      button.primary { background: var(--accent); color: var(--panel); border-color: transparent; }
+      .chat { max-width: 760px; margin: 0 auto; padding: 24px 16px 80px; }
+      body.fullscreen .chat { max-width: none; }
+      .user {
+        margin-left: auto; width: fit-content; max-width: 80%; padding: 10px 14px;
+        border-radius: 16px; background: var(--bubble); font-size: 14px; margin-bottom: 18px;
+        overflow-wrap: anywhere;
+      }
+      .assistant { font-size: 14px; line-height: 1.6; margin-bottom: 12px; }
+      .tool {
+        display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
+        border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; margin-bottom: 10px;
+      }
+      .tool code { color: var(--text); }
+      .frame {
+        border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel);
+      }
+      iframe { display: block; width: 100%; height: 640px; border: 0; }
+      body.fullscreen .frame { border-radius: 0; }
+      .log { margin-top: 14px; font-size: 12px; color: var(--muted); }
+      .log div { padding: 3px 0; border-top: 1px dashed var(--line); overflow-wrap: anywhere; }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <strong>MCP host preview</strong>
+      <input id="url" aria-label="Pull request URL" value="demo" />
+      <button class="primary" id="open">Call open_review</button>
+      <button id="theme">Dark host</button>
+      <button id="mode">Fullscreen</button>
+    </div>
+    <div class="chat">
+      <div class="user" id="ask">Review this pull request: demo</div>
+      <div class="assistant">
+        <div class="tool">Used tool <code>open_review</code> · Review Helper</div>
+        <div class="frame"><iframe id="app" title="Review Helper MCP App" src="/"></iframe></div>
+      </div>
+      <div class="assistant" id="reply"></div>
+      <div class="log" id="log" aria-label="Messages between host and app"></div>
+    </div>
+    <script>
+      // A small MCP Apps host: speaks the ui/* postMessage protocol to the iframe and forwards
+      // the app's tool calls to this server's real Streamable HTTP MCP endpoint.
+      const frame = document.getElementById("app");
+      const log = (text) => {
+        const row = document.createElement("div");
+        row.textContent = text;
+        document.getElementById("log").prepend(row);
+      };
+      let protocol = null;
+      let rpcId = 0;
+      async function mcp(method, params) {
+        const headers = { "Content-Type": "application/json", Accept: "application/json, text/event-stream" };
+        if (protocol) headers["MCP-Protocol-Version"] = protocol;
+        const response = await fetch("/mcp/", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method, params }),
+        });
+        const body = await response.json();
+        if (body.error) throw new Error(body.error.message);
+        return body.result;
+      }
+      async function connect() {
+        if (protocol) return;
+        const init = await mcp("initialize", {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "review-helper-host-preview", version: "1" },
+        });
+        protocol = init.protocolVersion;
+      }
+      const state = { theme: "light", displayMode: "inline", ready: false };
+      const context = () => ({
+        theme: state.theme,
+        displayMode: state.displayMode,
+        availableDisplayModes: ["inline", "fullscreen"],
+        platform: "web",
+      });
+      const send = (message) => frame.contentWindow.postMessage({ jsonrpc: "2.0", ...message }, location.origin);
+      const notifyContext = () => state.ready && send({ method: "ui/notifications/host-context-changed", params: context() });
+      function setMode(mode) {
+        state.displayMode = mode;
+        document.body.classList.toggle("fullscreen", mode === "fullscreen");
+        document.getElementById("mode").textContent = mode === "fullscreen" ? "Inline" : "Fullscreen";
+        notifyContext();
+      }
+      async function openReview() {
+        const url = document.getElementById("url").value.trim() || "demo";
+        document.getElementById("ask").textContent = `Review this pull request: ${url}`;
+        try {
+          await connect();
+          const args = { url };
+          send({ method: "ui/notifications/tool-input", params: { arguments: args } });
+          const result = await mcp("tools/call", { name: "open_review", arguments: args });
+          log(`tools/call open_review → ${result.content?.[0]?.text?.length ?? 0} characters for the model`);
+          const summary = result.structuredContent;
+          document.getElementById("reply").textContent = summary
+            ? `I opened “${summary.title}”: ${summary.sections?.length ?? 0} feature sections across ${summary.file_count ?? summary.files ?? "the"} changed files. Pick a section in the map and I'll read only that part.`
+            : "";
+          send({ method: "ui/notifications/tool-result", params: result });
+        } catch (error) {
+          log(`open_review failed: ${error.message}`);
+        }
+      }
+      window.addEventListener("message", async (event) => {
+        if (event.source !== frame.contentWindow || event.data?.jsonrpc !== "2.0") return;
+        const { id, method, params } = event.data;
+        try {
+          if (method === "ui/initialize") {
+            send({ id, result: {
+              protocolVersion: params.protocolVersion,
+              hostInfo: { name: "Review Helper host preview", version: "1" },
+              hostCapabilities: { serverTools: {}, updateModelContext: {}, openLinks: {}, message: {} },
+              hostContext: context(),
+            } });
+          } else if (method === "ui/notifications/initialized") {
+            state.ready = true;
+            openReview();
+          } else if (method === "tools/call") {
+            await connect();
+            const result = await mcp("tools/call", params);
+            log(`app called ${params.name}`);
+            send({ id, result });
+          } else if (method === "ui/message") {
+            const text = params.content?.map((c) => c.text).join(" ") ?? "";
+            const bubble = document.createElement("div");
+            bubble.className = "user";
+            bubble.textContent = text;
+            document.getElementById("reply").before(bubble);
+            log("app sent a chat message");
+            send({ id, result: {} });
+          } else if (method === "ui/update-model-context") {
+            log(`context for the model: ${params.content?.map((c) => c.text).join(" ")}`);
+            send({ id, result: {} });
+          } else if (method === "ui/request-display-mode") {
+            setMode(params.mode === "fullscreen" ? "fullscreen" : "inline");
+            send({ id, result: { mode: state.displayMode } });
+          } else if (method === "ui/open-link") {
+            window.open(params.url, "_blank", "noopener");
+            send({ id, result: {} });
+          } else if (method === "ui/notifications/size-changed") {
+            if (state.displayMode === "inline") frame.style.height = `${Math.min(Math.max(params.height, 420), 1400)}px`;
+          } else if (id !== undefined) {
+            send({ id, result: {} });
+          }
+        } catch (error) {
+          if (id !== undefined) send({ id, error: { code: -32000, message: error.message } });
+          log(`${method} failed: ${error.message}`);
+        }
+      });
+      document.getElementById("open").onclick = openReview;
+      document.getElementById("theme").onclick = () => {
+        state.theme = state.theme === "light" ? "dark" : "light";
+        document.documentElement.dataset.theme = state.theme;
+        document.getElementById("theme").textContent = state.theme === "light" ? "Dark host" : "Light host";
+        notifyContext();
+      };
+      document.getElementById("mode").onclick = () =>
+        setMode(state.displayMode === "inline" ? "fullscreen" : "inline");
+      window.addEventListener("resize", () => {
+        if (state.displayMode === "fullscreen") frame.style.height = `${window.innerHeight - 140}px`;
+      });
+    </script>
+  </body>
+</html>

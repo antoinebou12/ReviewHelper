@@ -47,11 +47,13 @@ export async function connectHost(
   };
   bridge.onhostcontextchanged = (ctx) => {
     if (ctx.theme) document.documentElement.dataset.theme = ctx.theme;
+    applyHostContext(ctx);
   };
   try {
     await bridge.connect();
-    const theme = bridge.getHostContext()?.theme;
-    if (theme) document.documentElement.dataset.theme = theme;
+    const ctx = bridge.getHostContext();
+    if (ctx?.theme) document.documentElement.dataset.theme = ctx.theme;
+    applyHostContext(ctx ?? {});
   } catch {
     onError(
       "The MCP host could not connect to the viewer. Open the local web app to continue.",
@@ -144,6 +146,49 @@ export async function progress(
     sections ? { method: "PUT", body: JSON.stringify({ sections }) } : {},
   );
   return result.sections;
+}
+/** How the chat host shows the app: inline in the conversation, or fullscreen. */
+export type HostView = {
+  displayMode: string;
+  canExpand: boolean;
+  canMessage: boolean;
+};
+let hostView: HostView = {
+  displayMode: "inline",
+  canExpand: false,
+  canMessage: false,
+};
+const viewListeners = new Set<(view: HostView) => void>();
+function applyHostContext(ctx: {
+  displayMode?: string;
+  availableDisplayModes?: string[];
+}) {
+  hostView = {
+    displayMode: ctx.displayMode ?? hostView.displayMode,
+    canExpand:
+      (ctx.availableDisplayModes ?? []).includes("fullscreen") ||
+      hostView.canExpand,
+    canMessage: !!bridge?.getHostCapabilities()?.message || hostView.canMessage,
+  };
+  viewListeners.forEach((listener) => listener(hostView));
+}
+export function onHostView(listener: (view: HostView) => void) {
+  viewListeners.add(listener);
+  listener(hostView);
+  return () => {
+    viewListeners.delete(listener);
+  };
+}
+/** Ask the host to show the app fullscreen or back inline. */
+export async function setDisplayMode(mode: "inline" | "fullscreen") {
+  if (!bridge) return;
+  const result = await bridge.requestDisplayMode({ mode });
+  applyHostContext({ displayMode: result.mode });
+}
+/** Put a review request into the chat, as if the user typed it. */
+export async function askInChat(text: string) {
+  if (!bridge) throw new Error("Not running inside a chat host.");
+  await bridge.sendMessage({ role: "user", content: [{ type: "text", text }] });
 }
 export async function tellHost(review: Review, sectionId: string) {
   if (bridge)

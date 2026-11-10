@@ -456,3 +456,205 @@ export function nearbyFiles(review: Review, seeds: string[], perName = 2) {
   }
   return { paths: [...reasons.keys()], reasons, links };
 }
+
+export type Column = { name: string; type: string; state: Status };
+export type Entity = {
+  key: string;
+  name: string;
+  state: Status;
+  columns: Column[];
+  file?: string;
+};
+export type EntityLink = { from: string; to: string; label: string };
+const entityKey = (name: string) => {
+  const n = name.toLowerCase().replace(/^.*\./, "").replace(/["`]/g, "");
+  return n.length > 3 && n.endsWith("s") ? n.slice(0, -1) : n;
+};
+
+/**
+ * Tables and ORM models a diff creates or changes: SQL CREATE/ALTER TABLE and
+ * Python classes with Column/mapped_column/Field attributes. Foreign keys become links;
+ * a referenced table outside the PR appears as unchanged context.
+ */
+export function dataModelOf(files: FileChange[]) {
+  const entities = new Map<string, Entity>();
+  const links: EntityLink[] = [];
+  const entity = (name: string, state: Status, file?: string) => {
+    const key = entityKey(name);
+    if (!entities.has(key))
+      entities.set(key, { key, name, state, columns: [], file });
+    const e = entities.get(key)!;
+    if (e.state === "unchanged" && state !== "unchanged") e.state = state;
+    e.file ??= file;
+    return e;
+  };
+  const link = (from: string, to: string, label: string) => {
+    if (
+      entityKey(from) !== entityKey(to) &&
+      !links.some((l) => l.from === entityKey(from) && l.to === entityKey(to))
+    )
+      links.push({ from: entityKey(from), to: entityKey(to), label });
+  };
+  for (const file of files) {
+    if (!file.patch) continue;
+    let current: Entity | null = null;
+    let sqlOpen = false;
+    for (const raw of file.patch.split("\n")) {
+      if (raw.startsWith("@@")) {
+        const ctx = raw.match(/class\s+(\w+)\s*\(/);
+        current = ctx ? entity(ctx[1], "modified", file.path) : null;
+        continue;
+      }
+      const sign = raw[0];
+      const state: Status =
+        file.status === "added" || sign === "+"
+          ? "added"
+          : file.status === "deleted" || sign === "-"
+            ? "deleted"
+            : "unchanged";
+      const line = raw.slice(1);
+      const create = line.match(
+        /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`]?([\w.]+)/i,
+      );
+      const alter = line.match(
+        /ALTER\s+TABLE\s+["`]?([\w.]+)["`]?\s+ADD\s+(?:COLUMN\s+)?["`]?(\w+)["`]?\s+(\w+)/i,
+      );
+      const model = line.match(
+        /^\s*class\s+(\w+)\s*\(([^)]*(?:Base|Model|Table|SQLModel|Document|Entity)[^)]*)\)/,
+      );
+      if (create) {
+        current = entity(create[1], state, file.path);
+        sqlOpen = true;
+      } else if (alter) {
+        const e = entity(alter[1], "modified", file.path);
+        e.columns.push({ name: alter[2], type: alter[3], state });
+        const ref = line.match(/REFERENCES\s+["`]?([\w.]+)/i);
+        if (ref) link(alter[1], ref[1], alter[2]);
+      } else if (model) {
+        current = entity(model[1], state, file.path);
+        sqlOpen = false;
+      } else if (current && sqlOpen) {
+        if (/^\s*\)\s*;?/.test(line)) {
+          sqlOpen = false;
+          continue;
+        }
+        // Several column definitions can share one line: "id UUID PRIMARY KEY, owner_id UUID".
+        for (const part of line.split(/,(?![^(]*\))/)) {
+          const col = part.match(
+            /^\s*["`]?(\w+)["`]?\s+([A-Za-z]\w*(?:\(\d+\))?)/,
+          );
+          if (
+            col &&
+            !/^(PRIMARY|FOREIGN|CONSTRAINT|UNIQUE|CHECK|KEY|INDEX)$/i.test(
+              col[1],
+            )
+          ) {
+            current.columns.push({ name: col[1], type: col[2], state });
+            const ref = part.match(/REFERENCES\s+["`]?([\w.]+)/i);
+            if (ref) link(current.name, ref[1], col[1]);
+          }
+        }
+      } else if (current && !sqlOpen) {
+        const attr = line.match(
+          /^\s+(\w+)\s*(?::\s*[\w\[\]., ]+)?=\s*(?:\w+\.)?(Column|mapped_column|Field|relationship)\(\s*(\w*)/,
+        );
+        if (attr && attr[2] !== "relationship") {
+          current.columns.push({
+            name: attr[1],
+            type: attr[3] || attr[2],
+            state,
+          });
+          const fk = line.match(/ForeignKey\(\s*["']([\w.]+)\.\w+["']/);
+          if (fk) link(current.name, fk[1], attr[1]);
+        }
+        const table = line.match(/__tablename__\s*=\s*["'](\w+)["']/);
+        if (table && entityKey(table[1]) !== current.key) {
+          // Merge "class Collection" with its "collections" table.
+          const other = entities.get(entityKey(table[1]));
+          if (other) {
+            current.columns.push(
+              ...other.columns.filter(
+                (c) => !current!.columns.some((x) => x.name === c.name),
+              ),
+            );
+            entities.delete(other.key);
+          }
+          entities.delete(current.key);
+          current.key = entityKey(table[1]);
+          entities.set(current.key, current);
+        } else if (!attr && /^\S/.test(line) && line.trim()) current = null;
+      }
+    }
+  }
+  for (const l of links)
+    if (!entities.has(l.to))
+      entities.set(l.to, {
+        key: l.to,
+        name: l.to,
+        state: "unchanged",
+        columns: [],
+      });
+  return { entities: [...entities.values()], links };
+}
+
+const isTest = (path: string) => layer(path).rank === 6;
+const isCode = (path: string) =>
+  /\.(py|ts|tsx|js|jsx|go|rs|java|kt|cs|rb|php|swift|vue|svelte)$/i.test(
+    path,
+  ) && !isTest(path);
+
+/** Which changed tests exercise which changed source files, by relationship or shared name. */
+export function testMapOf(review: Review, section: Section) {
+  const files = review.files.filter((f) => section.files.includes(f.path));
+  const sources = files.filter((f) => isCode(f.path) && f.status !== "deleted");
+  const tests = review.files.filter((f) => isTest(f.path));
+  const pairs: ImportLink[] = [];
+  for (const t of tests) {
+    const tokens = new Set(nameTokens(t.path));
+    const imports = new Set(
+      importsOf(t, new Set(review.files.map((f) => f.path))),
+    );
+    for (const s of sources) {
+      const related =
+        imports.has(s.path) ||
+        review.relationships.some(
+          (r) =>
+            (r.source === t.path && r.target === s.path) ||
+            (r.source === s.path && r.target === t.path),
+        ) ||
+        nameTokens(s.path).some((x) => tokens.has(x));
+      if (related) pairs.push({ source: s.path, target: t.path });
+    }
+  }
+  const usedTests = tests.filter(
+    (t) =>
+      pairs.some((p) => p.target === t.path) || section.files.includes(t.path),
+  );
+  return { sources, tests: usedTests, pairs };
+}
+
+/** Diagram types that have something to show for this review and section. */
+export function availableDiagrams(review: Review, section?: Section): string[] {
+  const modes: string[] = [];
+  const sectionFiles = section
+    ? review.files.filter((f) => section.files.includes(f.path))
+    : [];
+  if (review.files.length) modes.push("topology");
+  const prefix = changedPrefix(review.files.map((f) => f.path));
+  if (new Set(review.files.map((f) => moduleKey(f.path, prefix))).size > 1)
+    modes.push("c4");
+  if (review.sections.length > 1) modes.push("usecase");
+  if (section && sequenceOf(review, section).messages.length)
+    modes.push("sequence");
+  // Tables belong to the data model view; the class view needs functions or types.
+  if (sectionFiles.some((f) => symbolsOf(f).some((s) => s.kind !== "table")))
+    modes.push("class");
+  if (dataModelOf(sectionFiles).entities.some((e) => e.state !== "unchanged"))
+    modes.push("data");
+  if (section) {
+    const map = testMapOf(review, section);
+    if (map.sources.length && review.files.some((f) => isTest(f.path)))
+      modes.push("tests");
+  }
+  return modes;
+}

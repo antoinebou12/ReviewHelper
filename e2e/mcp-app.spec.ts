@@ -30,9 +30,15 @@ async function mountHost(
       if (event.source !== frame.contentWindow || message?.jsonrpc !== '2.0') return;
       const send = value => frame.contentWindow.postMessage({jsonrpc:'2.0', ...value}, location.origin);
       if (message.method === 'ui/initialize') {
-        send({id:message.id, result:{protocolVersion:message.params.protocolVersion, hostInfo:{name:'Test host',version:'1'},hostCapabilities:{serverTools:{},updateModelContext:{}},hostContext:{theme:'light'}}});
+        send({id:message.id, result:{protocolVersion:message.params.protocolVersion, hostInfo:{name:'Test host',version:'1'},hostCapabilities:{serverTools:{},updateModelContext:{},message:{}},hostContext:{theme:'light',displayMode:'inline',availableDisplayModes:['inline','fullscreen']}}});
       } else if (message.method === 'ui/notifications/initialized') {
         send({method:'ui/notifications/tool-result', params:{content:[{type:'text',text:'Demo review'}],structuredContent:{id:'demo'},_meta: inline ? {review} : {review_id:'demo'}}});
+      } else if (message.method === 'ui/request-display-mode') {
+        window.hostCalls.push({name:'display-mode', mode:message.params.mode});
+        send({id:message.id,result:{mode:message.params.mode}});
+      } else if (message.method === 'ui/message') {
+        window.hostCalls.push({name:'message', text:message.params.content[0].text});
+        send({id:message.id,result:{}});
       } else if (message.method === 'tools/call') {
         window.hostCalls.push(message.params);
         if (message.params.name === 'get_workspace') {
@@ -96,4 +102,53 @@ test("compact tool result loads the snapshot through the app-only get_workspace 
   expect(calls.find((c) => c.name === "get_workspace")?.arguments).toEqual({
     review_id: "demo",
   });
+});
+
+test("inside a chat the app is a compact card that can expand and ask the model", async ({
+  page,
+  request,
+}) => {
+  const { frame } = await mountHost(page, request, false);
+  await expect(
+    frame.getByRole("heading", { name: "Give saved articles a home" }),
+  ).toBeVisible();
+  // No web-app chrome and no side inspector inline; the map comes first.
+  await expect(frame.getByRole("button", { name: "Open a PR" })).toHaveCount(0);
+  await expect(
+    frame.getByRole("complementary", { name: "Section details" }),
+  ).toHaveCount(0);
+  await expect(
+    frame.getByRole("group", { name: "Project change map" }),
+  ).toBeVisible();
+  await frame.getByRole("button", { name: "Ask to review" }).click();
+  await frame.getByRole("button", { name: "Expand to fullscreen" }).click();
+  await expect(
+    frame.getByRole("complementary", { name: "Section details" }),
+  ).toBeVisible();
+  await frame.getByRole("button", { name: "Back to chat" }).click();
+  const calls = await hostCalls(page);
+  expect(calls.find((c) => c.name === "message")?.text).toContain(
+    "read_section",
+  );
+  expect(
+    calls.filter((c) => c.name === "display-mode").map((c) => c.mode),
+  ).toEqual(["fullscreen", "inline"]);
+});
+
+test("host preview runs the real MCP server end to end", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 1000 });
+  await page.goto("/mcp-preview");
+  const frame = page.frameLocator("iframe");
+  await expect(
+    frame.getByRole("heading", { name: "Give saved articles a home" }),
+  ).toBeVisible();
+  await expect(page.locator("#reply")).toContainText("4 feature sections");
+  await expect(page.locator("#log")).toContainText("app called get_workspace");
+  await page.screenshot({ path: "docs/screenshots/mcp-inline.png" });
+  await page.getByRole("button", { name: "Dark host" }).click();
+  await page.getByRole("button", { name: "Fullscreen" }).click();
+  await expect(
+    frame.getByRole("complementary", { name: "Section details" }),
+  ).toBeVisible();
+  await page.screenshot({ path: "docs/screenshots/mcp-fullscreen-dark.png" });
 });
