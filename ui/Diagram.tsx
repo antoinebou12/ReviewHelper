@@ -2,13 +2,21 @@ import { useMemo, useState } from "react";
 import { Minus, Plus, Scan, Download } from "lucide-react";
 import type { Review, Section, Status } from "./types";
 import { statusLabel, statusSymbol } from "./types";
-import { changedPrefix, groupNames, moduleKey, routeEdge } from "./uml";
+import {
+  changedPrefix,
+  groupNames,
+  moduleKey,
+  nearbyFiles,
+  routeEdge,
+} from "./uml";
 import { UmlView, type UmlMode } from "./UmlViews";
 
 type Node = {
   path: string;
   name: string;
   parent: string;
+  /** Why an unchanged file is shown in the Nearby scope. */
+  reason?: string;
   status: Status;
   x: number;
   y: number;
@@ -18,6 +26,7 @@ type Node = {
 };
 
 export type DiagramMode = "topology" | "c4" | UmlMode;
+type FileScope = "changed" | "nearby" | "all";
 
 export function Diagram({
   review,
@@ -35,96 +44,119 @@ export function Diagram({
   onSelectSection: (id: string) => void;
 }) {
   const [zoom, setZoom] = useState(1);
-  // Unchanged files are context, not review work: hide them unless asked.
-  const [showContext, setShowContext] = useState(false);
-  const onlyChanged = !showContext;
+  // Default: the change plus the unchanged files around it, never the whole repository.
+  const [scope, setScope] = useState<FileScope>("nearby");
   const uml = mode !== "topology" && mode !== "c4";
   const [focused, setFocused] = useState(false);
   const active = new Set(section?.files ?? review.files.map((f) => f.path));
-  const { nodes, groups, width, height, omitted, hidden } = useMemo(() => {
-    const changes = new Map(review.files.map((f) => [f.path, f]));
-    const all = [
-      ...new Set([...review.files.map((f) => f.path), ...review.tree]),
-    ];
-    const eligible = all.filter(
-      (path) =>
-        (!onlyChanged || changes.has(path)) &&
-        (!focused || !section || section.files.includes(path)),
-    );
-    // Keep every changed path before unchanged context when limiting a large graph.
-    const paths = eligible.slice(0, 120);
-    // Group by the first folder below the directory every change shares (e.g. src/api, src/web).
-    const prefix = changedPrefix(review.files.map((f) => f.path));
-    const keyOf = (path: string) => moduleKey(path, prefix);
-    const roots = [...new Set(paths.map(keyOf))].filter(
-      // C4 shows only containers this PR touches.
-      (root) =>
-        mode !== "c4" || paths.some((p) => keyOf(p) === root && changes.has(p)),
-    );
-    const hidden = new Set(paths.map(keyOf)).size - roots.length;
-    const groupList = roots.map((root) => ({
-      id: root,
-      name:
-        root === "root"
-          ? "Repository root"
-          : (groupNames[root.split("/").at(-1)!] ?? root.split("/").at(-1)!),
-      paths: paths.filter((path) => keyOf(path) === root),
-      x: 0,
-      y: 0,
-      height: 0,
-      width: 288,
-    }));
-    const cols = Math.min(3, Math.max(1, roots.length));
-    const nodeList: Node[] = [];
-    let y = 24;
-    for (let i = 0; i < groupList.length; i += cols) {
-      const row = groupList.slice(i, i + cols);
-      const horizontal =
-        mode === "topology" &&
-        row.length === 1 &&
-        row[0].paths.length <= cols &&
-        i > 0;
-      const rowHeight = Math.max(
-        ...row.map((g) =>
-          mode === "c4" ? 180 : horizontal ? 140 : 75 + g.paths.length * 65,
-        ),
+  const { nodes, groups, width, height, omitted, hidden, links, nearbyCount } =
+    useMemo(() => {
+      const changes = new Map(review.files.map((f) => [f.path, f]));
+      const seeds = review.files
+        .map((f) => f.path)
+        .filter((p) => !focused || !section || section.files.includes(p));
+      const near = nearbyFiles(review, seeds);
+      const context =
+        scope === "all"
+          ? review.tree.filter((p) => !changes.has(p))
+          : scope === "nearby"
+            ? near.paths
+            : [];
+      // Changed files first, so limiting a large graph never drops review work.
+      const eligible = [...new Set([...seeds, ...context])];
+      // Keep every changed path before unchanged context when limiting a large graph.
+      const paths = eligible.slice(0, 120);
+      // Group by the first folder below the directory every change shares (e.g. src/api, src/web).
+      const prefix = changedPrefix(review.files.map((f) => f.path));
+      const keyOf = (path: string) => moduleKey(path, prefix);
+      const roots = [...new Set(paths.map(keyOf))].filter(
+        // C4 shows only containers this PR touches.
+        (root) =>
+          mode !== "c4" ||
+          paths.some((p) => keyOf(p) === root && changes.has(p)),
       );
-      row.forEach((g, col) => {
-        g.x = 24 + col * 320;
-        g.y = y;
-        g.height =
-          mode === "c4" ? 180 : horizontal ? 140 : 75 + g.paths.length * 65;
-        g.width = horizontal ? cols * 320 - 32 : 288;
-        g.paths.forEach((path, index) => {
-          const parts = path.split("/");
-          nodeList.push({
-            path,
-            name: parts.at(-1)!,
-            parent: parts.slice(0, -1).join("/") || "/",
-            status: changes.get(path)?.status ?? "unchanged",
-            x: g.x + 16 + (horizontal ? index * 320 : 0),
-            y: y + 61 + (horizontal ? 0 : index * 65),
-            group: g.id,
-            channel: y + rowHeight + 25,
+      const hidden = new Set(paths.map(keyOf)).size - roots.length;
+      const groupList = roots.map((root) => ({
+        id: root,
+        name:
+          root === "root"
+            ? "Repository root"
+            : (groupNames[root.split("/").at(-1)!] ?? root.split("/").at(-1)!),
+        paths: paths.filter((path) => keyOf(path) === root),
+        x: 0,
+        y: 0,
+        height: 0,
+        width: 288,
+      }));
+      const cols = Math.min(3, Math.max(1, roots.length));
+      const nodeList: Node[] = [];
+      let y = 24;
+      for (let i = 0; i < groupList.length; i += cols) {
+        const row = groupList.slice(i, i + cols);
+        const horizontal =
+          mode === "topology" &&
+          row.length === 1 &&
+          row[0].paths.length <= cols &&
+          i > 0;
+        const rowHeight = Math.max(
+          ...row.map((g) =>
+            mode === "c4" ? 180 : horizontal ? 140 : 75 + g.paths.length * 65,
+          ),
+        );
+        row.forEach((g, col) => {
+          g.x = 24 + col * 320;
+          g.y = y;
+          g.height =
+            mode === "c4" ? 180 : horizontal ? 140 : 75 + g.paths.length * 65;
+          g.width = horizontal ? cols * 320 - 32 : 288;
+          g.paths.forEach((path, index) => {
+            const parts = path.split("/");
+            nodeList.push({
+              path,
+              name: parts.at(-1)!,
+              parent: parts.slice(0, -1).join("/") || "/",
+              reason: scope === "all" ? undefined : near.reasons.get(path),
+              status: changes.get(path)?.status ?? "unchanged",
+              x: g.x + 16 + (horizontal ? index * 320 : 0),
+              y: y + 61 + (horizontal ? 0 : index * 65),
+              group: g.id,
+              channel: y + rowHeight + 25,
+            });
           });
         });
-      });
-      y += rowHeight + 50;
-    }
-    return {
-      nodes: nodeList,
-      groups: groupList.map((g) => ({
-        ...g,
-        channel:
-          nodeList.find((n) => n.group === g.id)?.channel ??
-          g.y + g.height + 25,
-      })),
-      width: Math.max(680, cols * 320 + 16),
-      height: Math.max(430, y),
-      omitted: eligible.length - paths.length,
-      hidden,
-    };
-  }, [review, mode, onlyChanged, focused, section]);
+        y += rowHeight + 50;
+      }
+      return {
+        nodes: nodeList,
+        groups: groupList.map((g) => ({
+          ...g,
+          channel:
+            nodeList.find((n) => n.group === g.id)?.channel ??
+            g.y + g.height + 25,
+        })),
+        width: Math.max(680, cols * 320 + 16),
+        height: Math.max(430, y),
+        omitted: eligible.length - paths.length,
+        hidden,
+        nearbyCount: near.paths.length,
+        // Import edges found on changed lines, unless a review relationship already covers the pair.
+        links: near.links
+          .filter(
+            (l) =>
+              !review.relationships.some(
+                (r) =>
+                  (r.source === l.source && r.target === l.target) ||
+                  (r.source === l.target && r.target === l.source),
+              ),
+          )
+          .map((l) => ({
+            ...l,
+            label: "imports",
+            evidence: "Import statement on a changed line",
+            kind: "inferred",
+          })),
+      };
+    }, [review, mode, scope, focused, section]);
   const byPath = new Map(nodes.map((node) => [node.path, node]));
 
   function exportSvg() {
@@ -177,14 +209,33 @@ export function Diagram({
               />{" "}
               Focus section
             </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={showContext}
-                onChange={(e) => setShowContext(e.target.checked)}
-              />{" "}
-              Show unchanged files
-            </label>
+            <div
+              className="segmented scope"
+              role="group"
+              aria-label="Files shown"
+            >
+              {(
+                [
+                  ["changed", "Changed", "Only files this PR changes"],
+                  [
+                    "nearby",
+                    `Nearby${nearbyCount ? ` +${nearbyCount}` : ""}`,
+                    "Changed files plus files they import and their folder neighbours",
+                  ],
+                  ["all", "All", "Every file in the repository tree"],
+                ] as [FileScope, string, string][]
+              ).map(([value, label, title]) => (
+                <button
+                  key={value}
+                  title={title}
+                  aria-pressed={scope === value}
+                  className={scope === value ? "active" : ""}
+                  onClick={() => setScope(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -255,7 +306,7 @@ export function Diagram({
                 </text>
               </g>
             ))}
-            {review.relationships
+            {[...review.relationships, ...links]
               .map((edge, index) => {
                 const a = byPath.get(edge.source),
                   b = byPath.get(edge.target);
@@ -307,7 +358,7 @@ export function Diagram({
                     tabIndex={0}
                     aria-label={`${node.path}, ${statusLabel[node.status]}`}
                     aria-pressed={selected === node.path}
-                    className={`file-node ${node.status} ${active.has(node.path) ? "in-section" : "outside-section"} ${selected === node.path ? "selected" : ""}`}
+                    className={`file-node ${node.status} ${node.reason ? "nearby" : ""} ${active.has(node.path) ? "in-section" : "outside-section"} ${selected === node.path ? "selected" : ""}`}
                     onClick={() => onSelect(node.path)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -318,6 +369,7 @@ export function Diagram({
                   >
                     <title>
                       {node.path} · {statusLabel[node.status]}
+                      {node.reason ? ` · ${node.reason}` : ""}
                     </title>
                     <rect
                       x={node.x}
@@ -338,10 +390,20 @@ export function Diagram({
                         ? node.name.slice(0, 25) + "…"
                         : node.name}
                     </text>
-                    <text x={node.x + 32} y={node.y + 40} className="node-path">
-                      {node.parent.length > 29
-                        ? "…" + node.parent.slice(-27)
-                        : node.parent}
+                    <text
+                      x={node.x + 32}
+                      y={node.y + 40}
+                      className={
+                        node.reason ? "node-path node-reason" : "node-path"
+                      }
+                    >
+                      {node.reason
+                        ? node.reason.length > 34
+                          ? node.reason.slice(0, 33) + "…"
+                          : node.reason
+                        : node.parent.length > 29
+                          ? "…" + node.parent.slice(-27)
+                          : node.parent}
                     </text>
                   </g>
                 ))

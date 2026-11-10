@@ -70,13 +70,29 @@ test("C4, filters, zoom and SVG export work", async ({ page }) => {
     page.getByText("[Container · directory-derived]", { exact: true }),
   ).toHaveCount(4);
   await page.getByRole("button", { name: "Topology", exact: true }).click();
-  // Only changed files are drawn until the reviewer asks for context.
+  // Default: changed files plus nearby unchanged files, never the whole tree.
+  const scope = page.getByRole("group", { name: "Files shown" });
+  // Only connected files: imports on changed lines and name matches, each with its reason.
+  await expect(page.locator(".file-node.nearby")).toHaveCount(4);
+  await expect(
+    page.getByRole("button", { name: "web/lib/api.ts, Unchanged" }),
+  ).toContainText("Imported by useCollections.ts");
+  await expect(
+    page.getByRole("button", { name: "web/pages/Settings.tsx, Unchanged" }),
+  ).toHaveCount(0);
+  await scope.getByRole("button", { name: "Changed" }).click();
   await expect(page.locator(".file-node")).toHaveCount(12);
-  await page.getByRole("checkbox", { name: "Show unchanged files" }).check();
-  await expect(page.locator(".file-node.unchanged")).not.toHaveCount(0);
-  await page.getByRole("checkbox", { name: "Show unchanged files" }).uncheck();
+  await expect(page.locator(".file-node.unchanged")).toHaveCount(0);
+  await scope.getByRole("button", { name: "All" }).click();
+  await expect(
+    page.getByRole("button", { name: "web/pages/Settings.tsx, Unchanged" }),
+  ).toBeVisible();
+  await scope.getByRole("button", { name: /Nearby/ }).click();
   await page.getByRole("checkbox", { name: "Focus section" }).check();
-  await expect(page.locator(".file-node")).toHaveCount(6);
+  // The section's 6 files plus the unchanged files around them.
+  await expect(
+    page.locator(".file-node.added, .file-node.modified, .file-node.deleted"),
+  ).toHaveCount(6);
   await page.getByRole("checkbox", { name: "Focus section" }).uncheck();
   await page.getByRole("button", { name: "Zoom in" }).click();
   await expect(page.getByText("120%", { exact: true })).toBeVisible();

@@ -186,14 +186,12 @@ export function sequenceOf(review: Review, section: Section) {
     }));
   if (!messages.length && participants.length > 1) {
     const flow = participants.filter((p) => layer(p).rank < 6);
-    messages = flow
-      .slice(1)
-      .map((to, i) => ({
-        from: flow[i],
-        to,
-        label: "calls (inferred)",
-        inferred: true,
-      }));
+    messages = flow.slice(1).map((to, i) => ({
+      from: flow[i],
+      to,
+      label: "calls (inferred)",
+      inferred: true,
+    }));
   }
   return { participants: participants.map((p) => files.get(p)!), messages };
 }
@@ -294,3 +292,167 @@ export const groupNames: Record<string, string> = {
   src: "Source",
   docs: "Documentation",
 };
+
+export type ImportLink = { source: string; target: string };
+const JS_EXT = [
+  "",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".vue",
+  ".svelte",
+  "/index.ts",
+  "/index.tsx",
+  "/index.js",
+];
+
+function normalizePath(parts: string[]): string {
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part === "..") out.pop();
+    else if (part && part !== ".") out.push(part);
+  }
+  return out.join("/");
+}
+
+/** Resolve import specifiers on changed lines to repository paths that exist in the tree. */
+export function importsOf(file: FileChange, tree: Set<string>): string[] {
+  if (!file.patch) return [];
+  const dir = file.path.split("/").slice(0, -1);
+  const found = new Set<string>();
+  const tryPaths = (candidates: string[]) => {
+    const hit = candidates.find((c) => tree.has(c) && c !== file.path);
+    if (hit) found.add(hit);
+  };
+  for (const raw of file.patch.split("\n")) {
+    if (!/^[+ ]/.test(raw)) continue;
+    const line = raw.slice(1);
+    // JavaScript / TypeScript: import … from "./x", require("./x"), import("./x")
+    for (const m of line.matchAll(
+      /(?:from\s+|require\(\s*|import\(\s*|import\s+)["'](\.{1,2}\/[^"']+)["']/g,
+    )) {
+      const base = normalizePath([...dir, ...m[1].split("/")]);
+      tryPaths(JS_EXT.map((ext) => base + ext));
+    }
+    // Python: from a.b import c / from .b import c / import a.b
+    const py = line.match(
+      /^\s*(?:from\s+(\.*)([\w.]*)\s+import\s+([\w, ]+)|import\s+([\w.]+))/,
+    );
+    if (py && file.path.endsWith(".py")) {
+      const dots = py[1] ?? "";
+      const module = (py[2] ?? py[4] ?? "").split(".").filter(Boolean);
+      const root = dots ? dir.slice(0, dir.length - (dots.length - 1)) : [];
+      const names = (py[3] ?? "")
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+      const bases = [normalizePath([...root, ...module])];
+      // "from api.services import collections" may name a submodule.
+      for (const name of names)
+        bases.push(normalizePath([...root, ...module, name]));
+      for (const base of bases)
+        if (base) tryPaths([base + ".py", base + "/__init__.py"]);
+      // Repositories often keep packages under src/ or app/.
+      for (const prefix of ["src/", "app/"])
+        for (const base of bases) if (base) tryPaths([prefix + base + ".py"]);
+    }
+  }
+  return [...found];
+}
+
+const GENERIC = new Set([
+  "index",
+  "main",
+  "test",
+  "tests",
+  "spec",
+  "util",
+  "utils",
+  "helper",
+  "helpers",
+  "type",
+  "types",
+  "api",
+  "app",
+  "page",
+  "use",
+  "init",
+  "model",
+  "models",
+  "service",
+  "services",
+  "route",
+  "routes",
+  "lib",
+  "config",
+  "constant",
+  "constants",
+  "base",
+  "common",
+  "core",
+  "the",
+  "and",
+  "for",
+  "with",
+]);
+
+/** Meaningful words in a file name: useCollections.ts → collection, save.test.ts → save. */
+export function nameTokens(path: string): string[] {
+  const name = path
+    .split("/")
+    .at(-1)!
+    .replace(/\.[^.]+$/, "");
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .map((t) => t.toLowerCase())
+    .map((t) => (t.length > 4 && t.endsWith("s") ? t.slice(0, -1) : t))
+    .filter((t) => t.length > 2 && !GENERIC.has(t) && !/^\d+$/.test(t));
+}
+
+/**
+ * Unchanged files connected to the change, each with the reason it is shown:
+ * imported by a changed line, linked by a review relationship, or named after a changed file.
+ * Unrelated neighbours stay hidden; use the "All" scope for the full tree.
+ */
+export function nearbyFiles(review: Review, seeds: string[], perName = 2) {
+  const tree = new Set([...review.tree, ...review.files.map((f) => f.path)]);
+  const changed = new Map(review.files.map((f) => [f.path, f]));
+  const seedSet = new Set(seeds);
+  const reasons = new Map<string, string>();
+  const add = (path: string, reason: string) => {
+    if (!seedSet.has(path) && !changed.has(path) && !reasons.has(path))
+      reasons.set(path, reason);
+  };
+  const short = (path: string) => path.split("/").at(-1)!;
+  const links: ImportLink[] = [];
+  for (const path of seeds) {
+    const file = changed.get(path);
+    if (!file) continue;
+    for (const target of importsOf(file, tree)) {
+      links.push({ source: path, target });
+      add(target, `Imported by ${short(path)}`);
+    }
+  }
+  for (const r of review.relationships) {
+    if (seedSet.has(r.source) && tree.has(r.target))
+      add(r.target, `${r.label} from ${short(r.source)}`);
+    if (seedSet.has(r.target) && tree.has(r.source))
+      add(r.source, `${r.label} to ${short(r.target)}`);
+  }
+  for (const path of seeds) {
+    const tokens = new Set(nameTokens(path));
+    if (!tokens.size) continue;
+    review.tree
+      .filter(
+        (candidate) =>
+          !changed.has(candidate) &&
+          nameTokens(candidate).some((t) => tokens.has(t)),
+      )
+      .slice(0, perName)
+      .forEach((candidate) => add(candidate, `Same name as ${short(path)}`));
+  }
+  return { paths: [...reasons.keys()], reasons, links };
+}

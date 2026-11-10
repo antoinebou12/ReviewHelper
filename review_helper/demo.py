@@ -18,21 +18,21 @@ def demo_review() -> Review:
             "added",
             32,
             0,
-            '@@ -0,0 +1,7 @@\n+export function useCollections() {\n+  const { data, mutate } = useSWR("/api/collections");\n+  const create = async (name: string) => {\n+    await api.post("/api/collections", { name });\n+    await mutate();\n+  };\n+  return { collections: data ?? [], create };',
+            '@@ -0,0 +1,8 @@\n+import { api } from "../lib/api";\n+export function useCollections() {\n+  const { data, mutate } = useSWR("/api/collections");\n+  const create = async (name: string) => {\n+    await api.post("/api/collections", { name });\n+    await mutate();\n+  };\n+  return { collections: data ?? [], create };',
         ),
         (
             "api/routes/collections.py",
             "added",
             38,
             0,
-            '@@ -0,0 +1,9 @@\n+@router.post("/collections", status_code=201)\n+async def create_collection(\n+    payload: CollectionCreate,\n+    user: User = Depends(current_user),\n+):\n+    return await collections.create(\n+        owner_id=user.id,\n+        name=payload.name,\n+    )',
+            '@@ -0,0 +1,10 @@\n+from api.deps import current_user\n+@router.post("/collections", status_code=201)\n+async def create_collection(\n+    payload: CollectionCreate,\n+    user: User = Depends(current_user),\n+):\n+    return await collections.create(\n+        owner_id=user.id,\n+        name=payload.name,\n+    )',
         ),
         (
             "api/services/collections.py",
             "added",
             56,
             0,
-            "@@ -0,0 +1,7 @@\n+async def create(owner_id: UUID, name: str):\n+    collection = Collection(\n+        owner_id=owner_id, name=name.strip()\n+    )\n+    session.add(collection)\n+    await session.commit()\n+    return collection",
+            "@@ -0,0 +1,8 @@\n+from db.session import session\n+async def create(owner_id: UUID, name: str):\n+    collection = Collection(\n+        owner_id=owner_id, name=name.strip()\n+    )\n+    session.add(collection)\n+    await session.commit()\n+    return collection",
         ),
         (
             "db/models/collection.py",
@@ -166,7 +166,28 @@ def demo_review() -> Review:
         sections=sections,
         grouping="curated",
         tree=[f.path for f in files if f.status != "deleted"]
-        + ["web/pages/Library.tsx", "api/routes/auth.py", "db/models/user.py", "tests/api/test_auth.py"],
+        + [
+            "web/pages/Library.tsx",
+            "web/pages/Settings.tsx",
+            "web/pages/Profile.tsx",
+            "web/pages/Home.tsx",
+            "web/lib/api.ts",
+            "web/lib/format.ts",
+            "web/components/CollectionGrid.tsx",
+            "web/components/Header.tsx",
+            "api/routes/auth.py",
+            "api/routes/users.py",
+            "api/routes/health.py",
+            "api/deps.py",
+            "api/services/search.py",
+            "db/models/user.py",
+            "db/models/article.py",
+            "db/session.py",
+            "tests/api/test_auth.py",
+            "tests/api/test_users.py",
+            "docs/README.md",
+            "scripts/seed.py",
+        ],
         relationships=[
             Relationship(
                 source=files[a].path,
@@ -221,7 +242,7 @@ def demo_review() -> Review:
                     "Preview for **reading-room** is ready. Learn more in the [docs](https://example.com/docs).\n\n"
                     "| Project | Status | Preview |\n| :--- | :--- | :--- |\n"
                     '| <a href="https://example.com/p"><img alt="" src="x" /></a> reading-room '
-                    '| ![Ready](https://example.com/ready.svg) Ready '
+                    "| ![Ready](https://example.com/ready.svg) Ready "
                     "| [Open preview](https://preview.example.com) |\n"
                     "<script>alert(1)</script>"
                 ),

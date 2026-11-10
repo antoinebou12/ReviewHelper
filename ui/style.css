@@ -2032,3 +2032,11 @@ progress::-webkit-progress-value {
   color: var(--muted);
   margin-top: 8px;
 }
+/* Unchanged files shown because they connect to the change */
+.file-node.nearby > rect {
+  stroke-dasharray: 4 3;
+  fill: var(--surface);
+}
+.node-reason {
+  fill: var(--accent);
+}
