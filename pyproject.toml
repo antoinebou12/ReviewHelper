@@ -24,6 +24,7 @@ packages = ["review_helper"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = ["live: imports real public pull requests (needs REVIEW_HELPER_LIVE=1)"]
 addopts = "--cov=review_helper --cov-branch --cov-report=term-missing --cov-report=json --cov-report=html --cov-fail-under=85"
 
 [tool.ruff]

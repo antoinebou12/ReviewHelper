@@ -31,6 +31,13 @@ class ProviderError(ValueError):
     """Safe, user-facing provider failure."""
 
 
+class SignInRequired(ProviderError):
+    """The provider sent an anonymous request to its sign-in page."""
+
+
+SIGN_IN = ("_signin", "login.microsoftonline.com", "/login", "/users/sign_in", "vssps.visualstudio.com")
+
+
 @dataclass(frozen=True)
 class PRLocation:
     provider: str
@@ -114,6 +121,11 @@ class ProviderClient:
         try:
             async with self.http.stream("GET", url, params=params) as response:
                 if response.status_code in (301, 302, 307, 308):
+                    location = response.headers.get("location", "")
+                    if any(marker in location for marker in SIGN_IN):
+                        raise SignInRequired(
+                            "This part of the review needs sign-in. Add a provider token or sign in."
+                        )
                     raise ProviderError(
                         "The provider redirected this request. Use the current repository URL."
                     )
@@ -145,7 +157,10 @@ class ProviderClient:
 
     async def pages(self, path: str, *, key: str | None = None, params: dict | None = None) -> list:
         url = self.location.api + path
-        query = {"per_page": 100, "pagelen": 100, **(params or {}), "page": 1}
+        if self.location.provider == "bitbucket":
+            query = {"pagelen": 100, **(params or {})}
+        else:
+            query = {"per_page": 100, **(params or {}), "page": 1}
         items: list = []
         for page in range(1, MAX_PAGES + 1):
             data, response = await self.request(url, query)
@@ -253,7 +268,7 @@ class ProviderClient:
         pr = await self.get(f"/merge_requests/{n}")
         diffs, discussions, tree = await asyncio.gather(
             self.pages(f"/merge_requests/{n}/diffs"),
-            self.optional("Discussions", self.pages(f"/merge_requests/{n}/discussions"), []),
+            self.gitlab_discussions(n, pr.get("user_notes_count", 0)),
             self.optional(
                 "Repository tree",
                 self.pages("/repository/tree", params={"recursive": True, "ref": pr["sha"]}),
@@ -312,6 +327,17 @@ class ProviderClient:
                 for c in notes
             ],
         )
+
+    async def gitlab_discussions(self, n: int, count: int) -> list:
+        try:
+            return await self.pages(f"/merge_requests/{n}/discussions")
+        except ProviderError:
+            note = f" ({count} comments)" if count else ""
+            self.warnings.append(
+                f"GitLab shows merge request discussions{note} only to signed-in users. "
+                "Set GITLAB_TOKEN to include them."
+            )
+            return []
 
     async def load_bitbucket(self) -> Review:
         n = self.location.number
@@ -372,16 +398,11 @@ class ProviderClient:
         n = self.location.number
         version = {"api-version": "7.1"}
         pr = await self.get(f"/pullRequests/{n}", version)
-        iterations = await self.get(f"/pullRequests/{n}/iterations", version)
-        latest = max(iterations["value"], key=lambda item: item["id"])
-        iteration = latest["id"]
-        base_sha = (latest.get("commonRefCommit") or {}).get("commitId")
-        head_sha = (latest.get("sourceRefCommit") or pr["lastMergeSourceCommit"])["commitId"]
-        changes, threads, tree = await asyncio.gather(
-            self.get(
-                f"/pullRequests/{n}/iterations/{iteration}/changes",
-                {**version, "$compareTo": 0, "$top": 2000},
-            ),
+        try:
+            base_sha, head_sha, change_list = await self.azure_iteration_changes(n, pr)
+        except SignInRequired:
+            base_sha, head_sha, change_list = await self.azure_commit_changes(pr)
+        threads, tree = await asyncio.gather(
             self.optional("Threads", self.get(f"/pullRequests/{n}/threads", version), {}),
             self.optional(
                 "Repository tree",
@@ -397,8 +418,6 @@ class ProviderClient:
                 {},
             ),
         )
-        if changes.get("nextSkip"):
-            self.warnings.append("Azure returned more than 2,000 changes; the snapshot is incomplete.")
         files = [
             FileChange(
                 path=c["item"]["path"].lstrip("/"),
@@ -406,8 +425,8 @@ class ProviderClient:
                 previous_path=(c.get("originalPath") or "").lstrip("/") or None,
                 patch_note="Patch unavailable: the provider did not supply the comparison base.",
             )
-            for c in changes.get("changeEntries", [])
-            if not c["item"].get("isFolder")
+            for c in change_list
+            if not c["item"].get("isFolder") and c["item"].get("gitObjectType") != "tree"
         ]
         if base_sha:
             semaphore = asyncio.Semaphore(4)
@@ -456,6 +475,46 @@ class ProviderClient:
             comments=comments,
             tree=[i["path"].lstrip("/") for i in tree.get("value", []) if not i.get("isFolder")],
         )
+
+    async def azure_iteration_changes(self, n: int, pr: dict) -> tuple[str | None, str, list]:
+        version = {"api-version": "7.1"}
+        iterations = await self.get(f"/pullRequests/{n}/iterations", version)
+        latest = max(iterations["value"], key=lambda item: item["id"])
+        base_sha = (latest.get("commonRefCommit") or {}).get("commitId")
+        head_sha = (latest.get("sourceRefCommit") or pr["lastMergeSourceCommit"])["commitId"]
+        changes = await self.get(
+            f"/pullRequests/{n}/iterations/{latest['id']}/changes",
+            {**version, "$compareTo": 0, "$top": 2000},
+        )
+        if changes.get("nextSkip"):
+            self.warnings.append("Azure returned more than 2,000 changes; the snapshot is incomplete.")
+        return base_sha, head_sha, changes.get("changeEntries", [])
+
+    async def azure_commit_changes(self, pr: dict) -> tuple[str | None, str, list]:
+        """Anonymous fallback: compare the PR's source and target commits."""
+        head_sha = pr["lastMergeSourceCommit"]["commitId"]
+        diff = await self.get(
+            "/diffs/commits",
+            {
+                "api-version": "7.1",
+                "baseVersion": pr["lastMergeTargetCommit"]["commitId"],
+                "baseVersionType": "commit",
+                "targetVersion": head_sha,
+                "targetVersionType": "commit",
+                "diffCommonCommit": "true",
+                "$top": 2000,
+            },
+        )
+        self.warnings.append(
+            "Azure PR iterations need sign-in; changes come from comparing the PR's latest commits."
+        )
+        if not diff.get("allChangesIncluded", True):
+            self.warnings.append("Azure returned more than 2,000 changes; the snapshot is incomplete.")
+        changes = [
+            {**c, "originalPath": c.get("sourceServerItem") if c.get("changeType") == "rename" else None}
+            for c in diff.get("changes", [])
+        ]
+        return diff.get("commonCommit"), head_sha, changes
 
     async def azure_content(self, path: str, sha: str) -> str:
         item = await self.get(

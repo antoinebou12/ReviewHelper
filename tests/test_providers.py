@@ -411,3 +411,100 @@ def test_diff_helpers():
     assert count_lines("--- a\n+++ b\n-old\n+new\n context") == (1, 1)
     assert count_lines(None) == (0, 0)
     assert split_patch("binary") == {}
+
+
+async def test_sign_in_redirect_is_reported_as_sign_in_not_moved_repository():
+    from review_helper.providers import SignInRequired
+
+    def handler(request):
+        return httpx.Response(302, headers={"location": "https://x.vssps.visualstudio.com/_signin?realm=a"})
+
+    client = client_for("azure", handler)
+    with pytest.raises(SignInRequired, match="sign-in"):
+        await client.get("/pullRequests/1")
+    await client.http.aclose()
+
+
+async def test_bitbucket_pages_never_send_page_numbers():
+    seen = []
+
+    def handler(request):
+        seen.append(dict(request.url.params))
+        return httpx.Response(200, json={"values": [1]})
+
+    client = client_for("bitbucket", handler)
+    assert await client.pages("/src/abc/", key="values", params={"max_depth": 20}) == [1]
+    assert seen == [{"pagelen": "100", "max_depth": "20"}]
+    await client.http.aclose()
+
+
+async def test_azure_falls_back_to_commit_comparison_when_iterations_need_sign_in():
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/pullRequests/1"):
+            return httpx.Response(
+                200,
+                json={
+                    "title": "Public",
+                    "createdBy": {"displayName": "bot"},
+                    "targetRefName": "refs/heads/main",
+                    "sourceRefName": "refs/heads/topic",
+                    "lastMergeTargetCommit": {"commitId": "base"},
+                    "lastMergeSourceCommit": {"commitId": "head"},
+                },
+            )
+        if path.endswith("/iterations"):
+            return httpx.Response(302, headers={"location": "https://login.microsoftonline.com/x"})
+        if path.endswith("/diffs/commits"):
+            assert request.url.params["baseVersion"] == "base"
+            assert request.url.params["targetVersion"] == "head"
+            return httpx.Response(
+                200,
+                json={
+                    "commonCommit": "merge-base",
+                    "allChangesIncluded": False,
+                    "changes": [
+                        {"item": {"path": "/docs/new.md", "gitObjectType": "blob"}, "changeType": "add"},
+                        {"item": {"path": "/docs", "gitObjectType": "tree"}, "changeType": "edit"},
+                        {
+                            "item": {"path": "/b.md", "gitObjectType": "blob"},
+                            "changeType": "rename",
+                            "sourceServerItem": "/a.md",
+                        },
+                    ],
+                },
+            )
+        if path.endswith("/items") and "path" in request.url.params:
+            version = request.url.params["versionDescriptor.version"]
+            return httpx.Response(200, json={"content": f"text at {version}\n"})
+        return httpx.Response(200, json={"value": []})
+
+    review = await client_for("azure", handler).load()
+    assert [f.path for f in review.files] == ["docs/new.md", "b.md"]
+    assert review.files[1].status == "renamed" and review.files[1].previous_path == "a.md"
+    assert review.base_sha == "merge-base" and review.head_sha == "head"
+    assert any("need sign-in" in w for w in review.warnings)
+    assert any("more than 2,000" in w for w in review.warnings)
+
+
+async def test_gitlab_explains_discussions_need_a_token():
+    def handler(request):
+        path = request.url.path
+        if path.endswith("/merge_requests/1"):
+            return httpx.Response(
+                200,
+                json={
+                    "title": "t",
+                    "author": {"username": "u"},
+                    "target_branch": "main",
+                    "source_branch": "f",
+                    "sha": "head",
+                    "user_notes_count": 10,
+                },
+            )
+        if path.endswith("/discussions"):
+            return httpx.Response(401)
+        return httpx.Response(200, json=[])
+
+    review = await client_for("gitlab", handler).load()
+    assert any("(10 comments)" in w and "GITLAB_TOKEN" in w for w in review.warnings)
