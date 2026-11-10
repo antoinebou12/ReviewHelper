@@ -1,0 +1,16 @@
+.venv/
+node_modules/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.json
+htmlcov/
+test-results/
+playwright-report/
+.env
+.review-helper/
+dist/
+*.egg-info/
+.vercel/
+.atlas/

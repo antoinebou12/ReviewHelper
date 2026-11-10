@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "review-helper"
+version = "0.1.0"
+description = "Feature-based pull request maps for people and MCP clients"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "httpx>=0.28,<1", "mcp>=1.26,<2", "pydantic>=2.11,<3", "jsonschema>=4.25,<5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "radon>=6,<7", "pip-audit>=2.9,<3"]
+
+[project.scripts]
+review-helper = "review_helper.cli:main"
+review-helper-lint = "review_helper.lint:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["review_helper"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov=review_helper --cov-branch --cov-report=term-missing --cov-report=json --cov-report=html --cov-fail-under=85"
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"review_helper/demo.py" = ["E501"]
+
+[tool.vercel]
+entrypoint = "review_helper.app:app"
+
+[tool.vercel.scripts]
+build = "npm ci && npm run build"

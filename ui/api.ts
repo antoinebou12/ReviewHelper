@@ -1,0 +1,148 @@
+import { App } from "@modelcontextprotocol/ext-apps";
+import type { Review } from "./types";
+
+let accessToken = "";
+let bridge: App | null = null;
+export const embedded = window.parent !== window;
+export const setAccessToken = (token: string) => {
+  accessToken = token;
+};
+export async function api<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...options.headers,
+    },
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      typeof error.detail === "string"
+        ? error.detail
+        : `Request failed (${response.status}).`,
+    );
+  }
+  return response.json();
+}
+export async function connectHost(
+  onReview: (review: Review) => void,
+  onError: (message: string) => void,
+) {
+  bridge = new App({ name: "Review Helper", version: "0.1.0" }, {});
+  bridge.ontoolresult = async (result) => {
+    const review = result._meta?.review as Review | undefined;
+    if (review) onReview(review);
+    else if (typeof result._meta?.review_id === "string") {
+      try {
+        onReview(await workspace(result._meta.review_id));
+      } catch (e) {
+        onError((e as Error).message);
+      }
+    }
+  };
+  bridge.onhostcontextchanged = (ctx) => {
+    if (ctx.theme) document.documentElement.dataset.theme = ctx.theme;
+  };
+  try {
+    await bridge.connect();
+    const theme = bridge.getHostContext()?.theme;
+    if (theme) document.documentElement.dataset.theme = theme;
+  } catch {
+    onError(
+      "The MCP host could not connect to the viewer. Open the local web app to continue.",
+    );
+  }
+}
+export async function loadReview(
+  url = "demo",
+  token?: string,
+): Promise<Review> {
+  if (embedded && bridge) {
+    const result = await bridge.callServerTool({
+      name: "open_review",
+      arguments: { url },
+    });
+    if (result.isError)
+      throw new Error(
+        "The provider could not load this review. Check the server configuration.",
+      );
+    return (
+      (result._meta?.review as Review) ||
+      workspace(result._meta?.review_id as string)
+    );
+  }
+  return url === "demo"
+    ? api("/api/demo")
+    : api("/api/reviews", {
+        method: "POST",
+        body: JSON.stringify({ url, token: token || null }),
+      });
+}
+
+async function workspace(review_id: string): Promise<Review> {
+  const result = await bridge!.callServerTool({
+    name: "get_workspace",
+    arguments: { review_id },
+  });
+  if (result.isError || !result._meta?.review)
+    throw new Error("The host could not load this review workspace.");
+  return result._meta.review as Review;
+}
+
+export async function azureConnection(
+  action: "status" | "start" | "poll" | "logout",
+  login_id?: string,
+): Promise<any> {
+  if (embedded && bridge) {
+    const result = await bridge.callServerTool({
+      name: "azure_connection",
+      arguments: { action, login_id },
+    });
+    if (result.isError)
+      throw new Error(
+        "Could not connect to Microsoft. Configure AZURE_CLIENT_ID and AZURE_TENANT_ID on the server.",
+      );
+    return result.structuredContent;
+  }
+  if (action === "status")
+    return (await api<{ azure: unknown }>("/api/config")).azure;
+  return api(
+    `/api/auth/azure/${action === "poll" ? `poll/${encodeURIComponent(login_id!)}` : action}`,
+    { method: "POST" },
+  );
+}
+export async function progress(
+  id: string,
+  sections?: string[],
+): Promise<string[]> {
+  if (embedded && bridge) {
+    const result = await bridge.callServerTool({
+      name: "review_progress",
+      arguments: { review_id: id, ...(sections ? { sections } : {}) },
+    });
+    if (result.isError) throw new Error("Could not save review progress.");
+    const data = result.structuredContent as { sections: string[] } | undefined;
+    return data?.sections ?? [];
+  }
+  const result = await api<{ sections: string[] }>(
+    `/api/reviews/${encodeURIComponent(id)}/progress`,
+    sections ? { method: "PUT", body: JSON.stringify({ sections }) } : {},
+  );
+  return result.sections;
+}
+export async function tellHost(review: Review, sectionId: string) {
+  if (bridge)
+    await bridge.updateModelContext({
+      content: [
+        {
+          type: "text",
+          text: `The user is reviewing section ${sectionId} in review ${review.id} at head ${review.head_sha}. Use read_section for evidence.`,
+        },
+      ],
+    });
+}

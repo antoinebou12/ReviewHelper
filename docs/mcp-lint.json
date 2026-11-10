@@ -1,0 +1,514 @@
+{
+  "name": "Review Helper local MCP lint",
+  "mode": "local",
+  "passed": true,
+  "checks": [
+    {
+      "checkId": "tool-names-unique",
+      "target": "server",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tool names are unique."
+    },
+    {
+      "checkId": "tool-title-present",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tools need a top-level display title."
+    },
+    {
+      "checkId": "tool-description-present",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Describe the purpose and result of the tool."
+    },
+    {
+      "checkId": "tool-name-format",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tool names use supported characters and fit the 64-character limit."
+    },
+    {
+      "checkId": "tool-hints-present",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Declare read-only, destructive, open-world, and idempotency hints."
+    },
+    {
+      "checkId": "tool-input-schema-type",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Input schema is an object."
+    },
+    {
+      "checkId": "tool-input-schema-valid",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "JSON Schema and required fields are valid."
+    },
+    {
+      "checkId": "prop-description",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Every parameter has a description."
+    },
+    {
+      "checkId": "claude-code-metadata-length",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Description stays within 2 KB."
+    },
+    {
+      "checkId": "tool-text-hidden-characters",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "No hidden control characters in tool text."
+    },
+    {
+      "checkId": "tool-resource-uri-readable",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "The referenced UI resource is registered."
+    },
+    {
+      "checkId": "tool-invocation-metadata-present",
+      "target": "open_review",
+      "severity": "error",
+      "status": "pass",
+      "message": "Widget tools provide invocation status labels."
+    },
+    {
+      "checkId": "tool-title-present",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tools need a top-level display title."
+    },
+    {
+      "checkId": "tool-description-present",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "Describe the purpose and result of the tool."
+    },
+    {
+      "checkId": "tool-name-format",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tool names use supported characters and fit the 64-character limit."
+    },
+    {
+      "checkId": "tool-hints-present",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "Declare read-only, destructive, open-world, and idempotency hints."
+    },
+    {
+      "checkId": "tool-input-schema-type",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "Input schema is an object."
+    },
+    {
+      "checkId": "tool-input-schema-valid",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "JSON Schema and required fields are valid."
+    },
+    {
+      "checkId": "prop-description",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "Every parameter has a description."
+    },
+    {
+      "checkId": "claude-code-metadata-length",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "Description stays within 2 KB."
+    },
+    {
+      "checkId": "tool-text-hidden-characters",
+      "target": "read_section",
+      "severity": "error",
+      "status": "pass",
+      "message": "No hidden control characters in tool text."
+    },
+    {
+      "checkId": "tool-title-present",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tools need a top-level display title."
+    },
+    {
+      "checkId": "tool-description-present",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Describe the purpose and result of the tool."
+    },
+    {
+      "checkId": "tool-name-format",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tool names use supported characters and fit the 64-character limit."
+    },
+    {
+      "checkId": "tool-hints-present",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Declare read-only, destructive, open-world, and idempotency hints."
+    },
+    {
+      "checkId": "tool-input-schema-type",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Input schema is an object."
+    },
+    {
+      "checkId": "tool-input-schema-valid",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "JSON Schema and required fields are valid."
+    },
+    {
+      "checkId": "prop-description",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Every parameter has a description."
+    },
+    {
+      "checkId": "claude-code-metadata-length",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Description stays within 2 KB."
+    },
+    {
+      "checkId": "tool-text-hidden-characters",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "No hidden control characters in tool text."
+    },
+    {
+      "checkId": "tool-resource-uri-readable",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "The referenced UI resource is registered."
+    },
+    {
+      "checkId": "tool-invocation-metadata-present",
+      "target": "propose_review_plan",
+      "severity": "error",
+      "status": "pass",
+      "message": "Widget tools provide invocation status labels."
+    },
+    {
+      "checkId": "tool-title-present",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tools need a top-level display title."
+    },
+    {
+      "checkId": "tool-description-present",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Describe the purpose and result of the tool."
+    },
+    {
+      "checkId": "tool-name-format",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tool names use supported characters and fit the 64-character limit."
+    },
+    {
+      "checkId": "tool-hints-present",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Declare read-only, destructive, open-world, and idempotency hints."
+    },
+    {
+      "checkId": "tool-input-schema-type",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Input schema is an object."
+    },
+    {
+      "checkId": "tool-input-schema-valid",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "JSON Schema and required fields are valid."
+    },
+    {
+      "checkId": "prop-description",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Every parameter has a description."
+    },
+    {
+      "checkId": "claude-code-metadata-length",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Description stays within 2 KB."
+    },
+    {
+      "checkId": "tool-text-hidden-characters",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "No hidden control characters in tool text."
+    },
+    {
+      "checkId": "tool-visibility-valid",
+      "target": "get_workspace",
+      "severity": "error",
+      "status": "pass",
+      "message": "Visibility contains model and/or app without duplicates."
+    },
+    {
+      "checkId": "tool-title-present",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tools need a top-level display title."
+    },
+    {
+      "checkId": "tool-description-present",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Describe the purpose and result of the tool."
+    },
+    {
+      "checkId": "tool-name-format",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tool names use supported characters and fit the 64-character limit."
+    },
+    {
+      "checkId": "tool-hints-present",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Declare read-only, destructive, open-world, and idempotency hints."
+    },
+    {
+      "checkId": "tool-input-schema-type",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Input schema is an object."
+    },
+    {
+      "checkId": "tool-input-schema-valid",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "JSON Schema and required fields are valid."
+    },
+    {
+      "checkId": "prop-description",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Every parameter has a description."
+    },
+    {
+      "checkId": "claude-code-metadata-length",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Description stays within 2 KB."
+    },
+    {
+      "checkId": "tool-text-hidden-characters",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "No hidden control characters in tool text."
+    },
+    {
+      "checkId": "tool-visibility-valid",
+      "target": "review_progress",
+      "severity": "error",
+      "status": "pass",
+      "message": "Visibility contains model and/or app without duplicates."
+    },
+    {
+      "checkId": "tool-title-present",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tools need a top-level display title."
+    },
+    {
+      "checkId": "tool-description-present",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Describe the purpose and result of the tool."
+    },
+    {
+      "checkId": "tool-name-format",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Tool names use supported characters and fit the 64-character limit."
+    },
+    {
+      "checkId": "tool-hints-present",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Declare read-only, destructive, open-world, and idempotency hints."
+    },
+    {
+      "checkId": "tool-input-schema-type",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Input schema is an object."
+    },
+    {
+      "checkId": "tool-input-schema-valid",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "JSON Schema and required fields are valid."
+    },
+    {
+      "checkId": "prop-description",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Every parameter has a description."
+    },
+    {
+      "checkId": "claude-code-metadata-length",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Description stays within 2 KB."
+    },
+    {
+      "checkId": "tool-text-hidden-characters",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "No hidden control characters in tool text."
+    },
+    {
+      "checkId": "tool-visibility-valid",
+      "target": "azure_connection",
+      "severity": "error",
+      "status": "pass",
+      "message": "Visibility contains model and/or app without duplicates."
+    },
+    {
+      "checkId": "resource-description-present",
+      "target": "ui://review-helper/workspace.html",
+      "severity": "error",
+      "status": "pass",
+      "message": "Resources describe their content."
+    },
+    {
+      "checkId": "resource-content-valid",
+      "target": "ui://review-helper/workspace.html",
+      "severity": "error",
+      "status": "pass",
+      "message": "UI resource has the MCP Apps MIME type and HTML content."
+    },
+    {
+      "checkId": "view-csp-present",
+      "target": "ui://review-helper/workspace.html",
+      "severity": "error",
+      "status": "pass",
+      "message": "CSP explicitly declares connection and resource origins."
+    },
+    {
+      "checkId": "view-self-contained-assets",
+      "target": "ui://review-helper/workspace.html",
+      "severity": "error",
+      "status": "pass",
+      "message": "The viewer bundles its scripts and styles; inspect future external assets against CSP."
+    },
+    {
+      "checkId": "view-domain-present",
+      "target": "ui://review-helper/workspace.html",
+      "severity": "error",
+      "status": "skip",
+      "message": "Publishing requires MCP_APP_DOMAIN set to one owned HTTPS origin."
+    },
+    {
+      "checkId": "resource-description-present",
+      "target": "review://guide",
+      "severity": "error",
+      "status": "pass",
+      "message": "Resources describe their content."
+    },
+    {
+      "checkId": "resource-description-present",
+      "target": "skill://review-helper/SKILL.md",
+      "severity": "error",
+      "status": "pass",
+      "message": "Resources describe their content."
+    },
+    {
+      "checkId": "prompt-description-present",
+      "target": "review_feature",
+      "severity": "error",
+      "status": "pass",
+      "message": "Prompts describe their workflow."
+    },
+    {
+      "checkId": "prompt-arg-description",
+      "target": "review_feature",
+      "severity": "error",
+      "status": "pass",
+      "message": "Prompt arguments have descriptions."
+    },
+    {
+      "checkId": "connect-token-budget",
+      "target": "server",
+      "severity": "error",
+      "status": "pass",
+      "message": "Estimated model-visible discovery: 1273/4500 tokens."
+    }
+  ],
+  "estimated_model_tokens": 1273,
+  "hosted_manufact_checklist": "not run",
+  "real_chatgpt_claude_rendering": "not verified"
+}
