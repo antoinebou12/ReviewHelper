@@ -658,3 +658,21 @@ export function availableDiagrams(review: Review, section?: Section): string[] {
   }
   return modes;
 }
+
+/**
+ * Reading order inside a section: foundations before the code that depends on them,
+ * tests last (data → service → API → client state → UI → other → tests).
+ * Alphabetical order is the default in most review tools and is not a good reading order.
+ */
+const READING: Record<number, number> = {
+  4: 0,
+  3: 1,
+  2: 2,
+  1: 3,
+  0: 4,
+  5: 5,
+  6: 6,
+};
+export function readingRank(path: string): number {
+  return READING[layer(path).rank];
+}

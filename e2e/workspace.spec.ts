@@ -357,3 +357,30 @@ test("a one-feature PR gets a smaller interface", async ({ page }) => {
     page.getByRole("textbox", { name: "Search sections" }),
   ).toHaveCount(0);
 });
+
+test("files read foundations first and J/K move between sections", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Diffs/ }).click();
+  const headings = page.locator(
+    ".diffs-view .diff-heading > span:first-of-type",
+  );
+  // Data model, then service, API, client state, UI, and the test last.
+  await expect(headings).toHaveText([
+    "db/models/collection.py",
+    "api/services/collections.py",
+    "api/routes/collections.py",
+    "web/hooks/useCollections.ts",
+    "web/pages/Collections.tsx",
+    "tests/api/test_collections.py",
+  ]);
+  await page.locator("body").press("j");
+  await expect(
+    page.getByRole("heading", { name: "Save articles to collections" }),
+  ).toBeVisible();
+  await page.locator("body").press("k");
+  await expect(
+    page.getByRole("heading", { name: "Create a collection" }),
+  ).toBeVisible();
+});

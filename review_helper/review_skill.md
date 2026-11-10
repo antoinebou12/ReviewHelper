@@ -7,7 +7,8 @@ description: Review a pull request by feature using Review Helper maps, section 
 
 1. Call `open_review` with a supported pull request URL, or `demo` for the example. Read the compact section index and any completeness notices.
 2. Read `review://guide`. The initial import uses a filename heuristic. If grouping needs correction, read `review://reviews/{review_id}/manifest` and inspect relevant sections with `read_section`.
-3. Group by behavior across layers. A page, endpoint, model, and tests can belong to one feature. Keep migrations or independent cleanup separate when they need their own review decision.
+3. Group by behavior across layers. A page, endpoint, model, and tests can belong to one feature. Keep migrations or independent cleanup separate when they need their own review decision. Keep sections to about ten files; reviewer attention drops as a group grows.
+   Then review your own grouping once: if a section needs two sentences with different goals to describe it, split it; if two sections share one goal, merge them. Order sections so data and contracts come before the code that uses them.
 4. Use `propose_review_plan` with the current `expected_head`. Assign every changed file exactly once. Use only known paths in relationships and explain the evidence. These relationships remain marked inferred until independent analysis can verify them.
 5. Use `read_section` for the selected feature. Check behavior, failure paths, authorization where relevant, and tests. Read existing comments to avoid repeating resolved points.
 6. Report actionable findings with file, line, evidence, consequence, and uncertainty. Request additional source context when the available patch cannot establish the claim.

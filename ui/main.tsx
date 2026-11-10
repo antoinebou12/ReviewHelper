@@ -40,7 +40,7 @@ import {
   tellHost,
   type HostView,
 } from "./api";
-import { availableDiagrams } from "./uml";
+import { availableDiagrams, readingRank } from "./uml";
 import { Diagram, type DiagramMode } from "./Diagram";
 import { Diff } from "./Diff";
 import { Markdown } from "./Markdown";
@@ -222,22 +222,31 @@ function App() {
   }, [theme]);
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {
-      if (
-        e.key === "/" &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLTextAreaElement) &&
-        !modal
-      ) {
+      const typing =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement;
+      if (typing || modal || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "/") {
         e.preventDefault();
         search.current?.focus();
+      } else if ((e.key === "j" || e.key === "k") && review) {
+        // J / K move to the next / previous section.
+        const index = review.sections.findIndex((s) => s.id === sectionId);
+        const next = review.sections[index + (e.key === "j" ? 1 : -1)];
+        if (next) selectSection(next.id);
       }
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [modal]);
+  }, [modal, review, sectionId]);
   const section = review?.sections.find((s) => s.id === sectionId);
-  const files =
-    review?.files.filter((f) => section?.files.includes(f.path)) ?? [];
+  // Foundations first, tests last, ties by path: a reading order instead of alphabetical.
+  const files = (
+    review?.files.filter((f) => section?.files.includes(f.path)) ?? []
+  ).sort(
+    (a, b) =>
+      readingRank(a.path) - readingRank(b.path) || a.path.localeCompare(b.path),
+  );
   const file = review?.files.find((f) => f.path === selectedFile);
   const paths = new Set([
     ...files.map((f) => f.path),
@@ -707,7 +716,11 @@ function App() {
                   )}
                 </nav>
                 {view === "map" && diagrams.length > 1 && (
-                  <div className="segmented" role="group" aria-label="Diagram type">
+                  <div
+                    className="segmented"
+                    role="group"
+                    aria-label="Diagram type"
+                  >
                     {(
                       [
                         ["topology", "Topology"],

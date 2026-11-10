@@ -16,185 +16,205 @@ from jsonschema import Draft202012Validator
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
+HINTS = ("readOnlyHint", "destructiveHint", "openWorldHint", "idempotentHint")
+
+
+class Report:
+    """Collects check results in the format of the hosted checklist."""
+
+    def __init__(self):
+        self.checks: list[dict] = []
+
+    def check(self, rule: str, target: str, ok: bool, message: str, *, skip: bool = False) -> None:
+        status = "skip" if skip else "pass" if ok else "fail"
+        self.checks.append(
+            {"checkId": rule, "target": target, "severity": "error", "status": status, "message": message}
+        )
+
+
+def schema_valid(schema: dict) -> bool:
+    try:
+        Draft202012Validator.check_schema(schema)
+    except Exception:
+        return False
+    return set(schema.get("required", [])) <= set(schema.get("properties", {}))
+
+
+def check_tool(report: Report, tool: dict, resource_uris: set[str]) -> None:
+    name, description = tool["name"], tool.get("description", "")
+    schema = tool.get("inputSchema", {})
+    hints = tool.get("annotations") or {}
+    report.check("tool-title-present", name, bool(tool.get("title")), "Tools need a top-level display title.")
+    report.check(
+        "tool-description-present",
+        name,
+        len(description) >= 10,
+        "Describe the purpose and result of the tool.",
+    )
+    report.check(
+        "tool-name-format",
+        name,
+        bool(re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", name)),
+        "Tool names use supported characters and fit the 64-character limit.",
+    )
+    report.check(
+        "tool-hints-present",
+        name,
+        all(isinstance(hints.get(k), bool) for k in HINTS),
+        "Declare read-only, destructive, open-world, and idempotency hints.",
+    )
+    report.check("tool-input-schema-type", name, schema.get("type") == "object", "Input schema is an object.")
+    for kind, candidate in (("input", schema), ("output", tool.get("outputSchema"))):
+        if candidate is not None:
+            report.check(
+                f"tool-{kind}-schema-valid",
+                name,
+                schema_valid(candidate),
+                "JSON Schema and required fields are valid.",
+            )
+    report.check(
+        "prop-description",
+        name,
+        all(p.get("description") for p in schema.get("properties", {}).values()),
+        "Every parameter has a description.",
+    )
+    report.check(
+        "claude-code-metadata-length",
+        name,
+        len(description.encode()) <= 2048,
+        "Description stays within 2 KB.",
+    )
+    report.check(
+        "tool-text-hidden-characters",
+        name,
+        not re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", name + description),
+        "No hidden control characters in tool text.",
+    )
+    meta = tool.get("_meta") or {}
+    ui = meta.get("ui", {})
+    if "visibility" in ui:
+        value = ui["visibility"]
+        report.check(
+            "tool-visibility-valid",
+            name,
+            bool(value) and len(value) == len(set(value)) and set(value) <= {"model", "app"},
+            "Visibility contains model and/or app without duplicates.",
+        )
+    if "resourceUri" in ui:
+        invocation = meta.get("openai/toolInvocation", {})
+        report.check(
+            "tool-resource-uri-readable",
+            name,
+            ui["resourceUri"] in resource_uris,
+            "The referenced UI resource is registered.",
+        )
+        report.check(
+            "tool-invocation-metadata-present",
+            name,
+            bool(invocation.get("invoking") and invocation.get("invoked")),
+            "Widget tools provide invocation status labels.",
+        )
+
+
+def exact_origin(value: str) -> bool:
+    domain = urlsplit(value)
+    return (
+        domain.scheme == "https"
+        and bool(domain.hostname)
+        and not (domain.path or domain.query or domain.fragment or domain.username)
+        and "*" not in domain.netloc
+    )
+
+
+def check_resource(report: Report, resource: dict, html: str, publish: bool) -> None:
+    uri = resource["uri"]
+    report.check(
+        "resource-description-present",
+        uri,
+        bool(resource.get("description")),
+        "Resources describe their content.",
+    )
+    if not uri.startswith("ui://"):
+        return
+    report.check(
+        "resource-content-valid",
+        uri,
+        resource.get("mimeType") == "text/html;profile=mcp-app"
+        and "<html" in html
+        and "<svg" not in html[:15],
+        "UI resource has the MCP Apps MIME type and HTML content.",
+    )
+    ui = (resource.get("_meta") or {}).get("ui", {})
+    csp = ui.get("csp", {})
+    report.check(
+        "view-csp-present",
+        uri,
+        isinstance(csp.get("connectDomains"), list) and isinstance(csp.get("resourceDomains"), list),
+        "CSP explicitly declares connection and resource origins.",
+    )
+    # The compiled app has inline JS/CSS and no external script/style dependencies.
+    report.check(
+        "view-self-contained-assets",
+        uri,
+        not re.search(r'<(?:script|link)\b[^>]*(?:src|href)=["\']https?://', html),
+        "The viewer bundles its scripts and styles; inspect future external assets against CSP.",
+    )
+    domain = ui.get("domain", "")
+    report.check(
+        "view-domain-present",
+        uri,
+        exact_origin(domain),
+        "Publishing requires MCP_APP_DOMAIN set to one owned HTTPS origin.",
+        skip=not publish and not urlsplit(domain).netloc,
+    )
+
+
+def check_prompt(report: Report, prompt: dict) -> None:
+    name = prompt["name"]
+    report.check(
+        "prompt-description-present",
+        name,
+        bool(prompt.get("description")),
+        "Prompts describe their workflow.",
+    )
+    report.check(
+        "prompt-arg-description",
+        name,
+        all(a.get("description") for a in prompt.get("arguments", [])),
+        "Prompt arguments have descriptions.",
+    )
+
 
 def inspect_definitions(
     tools: list[dict], resources: list[dict], prompts: list[dict], html: str, *, publish: bool = False
 ) -> dict:
-    checks = []
-
-    def check(rule, target, ok, message, severity="error", skip=False):
-        checks.append(
-            {
-                "checkId": rule,
-                "target": target,
-                "severity": severity,
-                "status": "skip" if skip else "pass" if ok else "fail",
-                "message": message,
-            }
-        )
-
-    check(
+    report = Report()
+    report.check(
         "tool-names-unique", "server", len({t["name"] for t in tools}) == len(tools), "Tool names are unique."
     )
     resource_uris = {r["uri"] for r in resources}
     for tool in tools:
-        name = tool["name"]
-        check("tool-title-present", name, bool(tool.get("title")), "Tools need a top-level display title.")
-        check(
-            "tool-description-present",
-            name,
-            len(tool.get("description", "")) >= 10,
-            "Describe the purpose and result of the tool.",
-        )
-        check(
-            "tool-name-format",
-            name,
-            bool(re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", name)),
-            "Tool names use supported characters and fit the 64-character limit.",
-        )
-        hints = tool.get("annotations") or {}
-        check(
-            "tool-hints-present",
-            name,
-            all(
-                isinstance(hints.get(k), bool)
-                for k in ("readOnlyHint", "destructiveHint", "openWorldHint", "idempotentHint")
-            ),
-            "Declare read-only, destructive, open-world, and idempotency hints.",
-        )
-        schema = tool.get("inputSchema", {})
-        check("tool-input-schema-type", name, schema.get("type") == "object", "Input schema is an object.")
-        for kind, candidate in [("input", schema), ("output", tool.get("outputSchema"))]:
-            if candidate is None:
-                continue
-            valid = True
-            try:
-                Draft202012Validator.check_schema(candidate)
-                valid = set(candidate.get("required", [])) <= set(candidate.get("properties", {}))
-            except Exception:
-                valid = False
-            check(f"tool-{kind}-schema-valid", name, valid, "JSON Schema and required fields are valid.")
-        props = schema.get("properties", {})
-        check(
-            "prop-description",
-            name,
-            all(p.get("description") for p in props.values()),
-            "Every parameter has a description.",
-        )
-        check(
-            "claude-code-metadata-length",
-            name,
-            len(tool.get("description", "").encode()) <= 2048,
-            "Description stays within 2 KB.",
-        )
-        check(
-            "tool-text-hidden-characters",
-            name,
-            not re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", name + tool.get("description", "")),
-            "No hidden control characters in tool text.",
-        )
-        ui = (tool.get("_meta") or {}).get("ui", {})
-        if "visibility" in ui:
-            value = ui["visibility"]
-            check(
-                "tool-visibility-valid",
-                name,
-                bool(value) and len(value) == len(set(value)) and set(value) <= {"model", "app"},
-                "Visibility contains model and/or app without duplicates.",
-            )
-        if "resourceUri" in ui:
-            check(
-                "tool-resource-uri-readable",
-                name,
-                ui["resourceUri"] in resource_uris,
-                "The referenced UI resource is registered.",
-            )
-            invocation = (tool.get("_meta") or {}).get("openai/toolInvocation", {})
-            check(
-                "tool-invocation-metadata-present",
-                name,
-                bool(invocation.get("invoking") and invocation.get("invoked")),
-                "Widget tools provide invocation status labels.",
-            )
+        check_tool(report, tool, resource_uris)
     for resource in resources:
-        uri = resource["uri"]
-        check(
-            "resource-description-present",
-            uri,
-            bool(resource.get("description")),
-            "Resources describe their content.",
-        )
-        if not uri.startswith("ui://"):
-            continue
-        check(
-            "resource-content-valid",
-            uri,
-            resource.get("mimeType") == "text/html;profile=mcp-app"
-            and "<html" in html
-            and "<svg" not in html[:15],
-            "UI resource has the MCP Apps MIME type and HTML content.",
-        )
-        ui = (resource.get("_meta") or {}).get("ui", {})
-        csp = ui.get("csp", {})
-        check(
-            "view-csp-present",
-            uri,
-            isinstance(csp.get("connectDomains"), list) and isinstance(csp.get("resourceDomains"), list),
-            "CSP explicitly declares connection and resource origins.",
-        )
-        # The compiled app has inline JS/CSS and no external script/style dependencies.
-        check(
-            "view-self-contained-assets",
-            uri,
-            not re.search(r'<(?:script|link)\b[^>]*(?:src|href)=["\']https?://', html),
-            "The viewer bundles its scripts and styles; inspect future external assets against CSP.",
-        )
-        domain = urlsplit(ui.get("domain", ""))
-        exact = (
-            domain.scheme == "https"
-            and bool(domain.hostname)
-            and not domain.path
-            and not domain.query
-            and not domain.fragment
-            and not domain.username
-            and "*" not in domain.netloc
-        )
-        check(
-            "view-domain-present",
-            uri,
-            exact,
-            "Publishing requires MCP_APP_DOMAIN set to one owned HTTPS origin.",
-            skip=not publish and not domain.netloc,
-        )
+        check_resource(report, resource, html, publish)
     for prompt in prompts:
-        check(
-            "prompt-description-present",
-            prompt["name"],
-            bool(prompt.get("description")),
-            "Prompts describe their workflow.",
-        )
-        check(
-            "prompt-arg-description",
-            prompt["name"],
-            all(a.get("description") for a in prompt.get("arguments", [])),
-            "Prompt arguments have descriptions.",
-        )
+        check_prompt(report, prompt)
+    # App-only tools are hidden from the model, so they do not count toward its context.
     model_tools = [t for t in tools if (t.get("_meta") or {}).get("ui", {}).get("visibility") != ["app"]]
     estimate = math.ceil(
         len(json.dumps({"tools": model_tools, "resources": resources, "prompts": prompts})) / 4
     )
-    check(
+    report.check(
         "connect-token-budget",
         "server",
         estimate <= 4500,
         f"Estimated model-visible discovery: {estimate}/4500 tokens.",
     )
-    failures = [c for c in checks if c["status"] == "fail"]
     return {
         "name": "Review Helper local MCP lint",
         "mode": "publish-metadata" if publish else "local",
-        "passed": not failures,
-        "checks": checks,
+        "passed": not any(c["status"] == "fail" for c in report.checks),
+        "checks": report.checks,
         "estimated_model_tokens": estimate,
         "hosted_manufact_checklist": "not run",
         "real_chatgpt_claude_rendering": "not verified",
