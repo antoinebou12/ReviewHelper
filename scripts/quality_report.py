@@ -4,6 +4,7 @@ CRAP = complexity² × (1 − covered_fraction)³ + complexity.
 Line coverage is used, not branch coverage. This is a prioritization signal.
 """
 
+import argparse
 import json
 from pathlib import Path
 
@@ -11,6 +12,9 @@ from radon.complexity import cc_visit
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--max-crap", type=float, help="Exit non-zero when any function exceeds this score.")
+    args = parser.parse_args()
     coverage = json.loads(Path("coverage.json").read_text())
     by_path = {Path(path).as_posix().replace("\\", "/"): info for path, info in coverage["files"].items()}
     rows = []
@@ -47,6 +51,9 @@ def main():
             f"{row['file']}:{row['line']} {row['function']}: complexity={row['complexity']}, "
             f"coverage={row['line_coverage']:.1%}, CRAP={row['crap']}"
         )
+    over = [row for row in rows if args.max_crap is not None and row["crap"] > args.max_crap]
+    if over:
+        raise SystemExit(f"{len(over)} function(s) exceed CRAP {args.max_crap}: {over[0]['function']} first.")
 
 
 if __name__ == "__main__":

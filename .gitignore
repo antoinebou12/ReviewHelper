@@ -14,3 +14,8 @@ dist/
 *.egg-info/
 .vercel/
 .atlas/
+mutation/session.sqlite
+mutation/report.txt
+mutation/generated.toml
+.manufact/
+.mcp-use/

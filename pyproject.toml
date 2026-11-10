@@ -8,10 +8,24 @@ version = "0.1.0"
 description = "Feature-based pull request maps for people and MCP clients"
 requires-python = ">=3.12"
 license = "MIT"
+readme = "README.md"
+authors = [{ name = "Antoine Boucher" }]
+keywords = ["code-review", "pull-request", "mcp", "mcp-app", "diagrams", "github", "gitlab", "bitbucket", "azure-devops"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Framework :: FastAPI",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "httpx>=0.28,<1", "mcp>=1.26,<2", "pydantic>=2.11,<3", "jsonschema>=4.25,<5"]
+
+[project.urls]
+Homepage = "https://github.com/antoinebou12/ReviewHelper"
+Changelog = "https://github.com/antoinebou12/ReviewHelper/blob/main/CHANGELOG.md"
+Issues = "https://github.com/antoinebou12/ReviewHelper/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "pytest-asyncio>=1,<2", "ruff>=0.12,<1", "radon>=6,<7", "pip-audit>=2.9,<3"]
+mutation = ["cosmic-ray>=8.4,<9"]
 
 [project.scripts]
 review-helper = "review_helper.cli:main"

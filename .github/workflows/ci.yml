@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python · lint, tests, coverage, CRAP, MCP lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check review_helper tests scripts
+      - name: Unit and MCP protocol tests (coverage gate 85%)
+        run: uv run pytest
+      - name: CRAP score (fails above 30)
+        run: uv run python scripts/quality_report.py --max-crap 30
+      - name: MCP metadata lint
+        run: uv run review-helper-lint --json docs/mcp-lint.json
+      - name: Dependency audit
+        run: uv run pip-audit --strict --skip-editable
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: |
+            htmlcov/
+            coverage.json
+
+  e2e:
+    name: Playwright · web app and MCP App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - name: Type check and build the viewer
+        run: npm run build
+      - run: uv sync --frozen --extra dev
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+        env:
+          CI: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+
+  mutation:
+    name: Mutation testing · review logic
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'mutation')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev --extra mutation
+      # Target 80% killed. Informational until a full baseline run is recorded.
+      - run: uv run python scripts/mutation.py --min-score 80
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-report
+          path: mutation/report.txt

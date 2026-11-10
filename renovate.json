@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommitTypeAll(chore)", "helpers:pinGitHubActionDigests"],
+  "labels": ["dependencies"],
+  "schedule": ["before 6am on monday"],
+  "timezone": "America/Toronto",
+  "prConcurrentLimit": 5,
+  "lockFileMaintenance": { "enabled": true, "schedule": ["before 6am on monday"] },
+  "packageRules": [
+    {
+      "description": "One weekly PR for non-major npm updates",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm non-major"
+    },
+    {
+      "description": "One weekly PR for non-major Python updates",
+      "matchManagers": ["pep621"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Python non-major"
+    },
+    {
+      "description": "GitHub Actions together",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "MCP SDKs change protocol behaviour; review each one",
+      "matchPackageNames": ["mcp", "@modelcontextprotocol/ext-apps"],
+      "groupName": null,
+      "labels": ["dependencies", "mcp"]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+# docker compose up --build   →  http://127.0.0.1:8000  (MCP: http://127.0.0.1:8000/mcp/)
+services:
+  review-helper:
+    build: .
+    image: review-helper:local
+    # Bound to localhost. Set REVIEW_HELPER_ACCESS_TOKEN before exposing it on a network.
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - review-data:/data
+    restart: unless-stopped
+
+volumes:
+  review-data:

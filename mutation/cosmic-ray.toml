@@ -1,0 +1,10 @@
+# Mutation testing for the logic that decides what reviewers see.
+# Run: python scripts/mutation.py   (results in mutation/report.txt)
+[cosmic-ray]
+module-path = ["review_helper/hunks.py", "review_helper/analysis.py"]
+timeout = 60.0
+excluded-modules = []
+test-command = "python -m pytest -x -q -p no:cacheprovider --no-cov tests/test_hunks.py tests/test_analysis.py"
+
+[cosmic-ray.distributor]
+name = "local"

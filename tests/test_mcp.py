@@ -101,3 +101,17 @@ def test_cli_transports(monkeypatch):
     monkeypatch.setattr(mcp, "run", lambda **kw: called.append(kw))
     main()
     assert called[-1]["transport"] == "stdio"
+
+
+def test_app_domain_prefers_explicit_setting_then_manufact_url(monkeypatch):
+    from review_helper.mcp_server import app_domain
+
+    monkeypatch.delenv("MCP_APP_DOMAIN", raising=False)
+    monkeypatch.delenv("MCP_URL", raising=False)
+    assert app_domain() is None
+    monkeypatch.setenv("MCP_URL", "https://review-helper.run.manufact.app/mcp")
+    assert app_domain() == "https://review-helper.run.manufact.app"
+    monkeypatch.setenv("MCP_URL", "http://insecure.example")
+    assert app_domain() is None
+    monkeypatch.setenv("MCP_APP_DOMAIN", "https://review.example.com")
+    assert app_domain() == "https://review.example.com"

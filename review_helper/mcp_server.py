@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
@@ -136,6 +137,14 @@ async def provider_connection(
     return login.status()
 
 
+def app_domain() -> str | None:
+    """The app's public origin: MCP_APP_DOMAIN, else the origin of Manufact's injected MCP_URL."""
+    if os.getenv("MCP_APP_DOMAIN"):
+        return os.environ["MCP_APP_DOMAIN"]
+    url = urlsplit(os.getenv("MCP_URL", ""))
+    return f"https://{url.netloc}" if url.scheme == "https" and url.netloc else None
+
+
 @mcp.resource(
     APP_URI,
     title="Review Helper workspace",
@@ -146,7 +155,7 @@ async def provider_connection(
         "ui": {
             "prefersBorder": False,
             "csp": {"connectDomains": [], "resourceDomains": []},
-            **({"domain": os.environ["MCP_APP_DOMAIN"]} if os.getenv("MCP_APP_DOMAIN") else {}),
+            **({"domain": domain} if (domain := app_domain()) else {}),
         }
     },
 )
