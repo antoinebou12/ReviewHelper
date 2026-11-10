@@ -1,6 +1,7 @@
 /** Simple sequence, class and use case views generated from the review data. */
 import type { FileChange, Review, Section } from "./types";
 import { statusSymbol } from "./types";
+import { sectionFiles } from "./hunks";
 import {
   changedPrefix,
   dataModelOf,
@@ -208,9 +209,8 @@ export function ClassView({
 }: Props) {
   if (!section)
     return <Empty zoom={zoom} text="Select a section to see its classes." />;
-  const files = review.files
-    .filter((f) => section.files.includes(f.path))
-    .slice(0, 9);
+  // Split files list only the definitions in this section's hunks.
+  const files = sectionFiles(review, section).slice(0, 9);
   if (!files.length)
     return <Empty zoom={zoom} text="This section has no changed files." />;
   const MAX = 7;
@@ -449,8 +449,7 @@ export function UseCaseView({ review, section, zoom, onSelectSection }: Props) {
 
 /** Tables and models this section creates or changes, with foreign keys. */
 export function DataView({ review, section, selected, zoom, onSelect }: Props) {
-  const files = review.files.filter((f) => section?.files.includes(f.path));
-  const { entities, links } = dataModelOf(files);
+  const { entities, links } = dataModelOf(sectionFiles(review, section));
   if (!entities.length)
     return <Empty zoom={zoom} text="No tables or models in this section." />;
   const MAX = 8;

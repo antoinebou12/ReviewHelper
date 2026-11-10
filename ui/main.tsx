@@ -41,6 +41,7 @@ import {
   type HostView,
 } from "./api";
 import { availableDiagrams, readingRank } from "./uml";
+import { commentBelongs, owners, sectionFiles } from "./hunks";
 import { Diagram, type DiagramMode } from "./Diagram";
 import { Diff } from "./Diff";
 import { Markdown } from "./Markdown";
@@ -241,19 +242,25 @@ function App() {
   }, [modal, review, sectionId]);
   const section = review?.sections.find((s) => s.id === sectionId);
   // Foundations first, tests last, ties by path: a reading order instead of alphabetical.
-  const files = (
-    review?.files.filter((f) => section?.files.includes(f.path)) ?? []
-  ).sort(
+  // A file shared with other sections shows only the hunks this section owns.
+  const files = (review ? sectionFiles(review, section) : []).sort(
     (a, b) =>
       readingRank(a.path) - readingRank(b.path) || a.path.localeCompare(b.path),
   );
-  const file = review?.files.find((f) => f.path === selectedFile);
-  const paths = new Set([
-    ...files.map((f) => f.path),
-    ...files.map((f) => f.previous_path).filter(Boolean),
-  ]);
+  const file =
+    files.find((f) => f.path === selectedFile) ??
+    review?.files.find((f) => f.path === selectedFile);
   const comments =
-    review?.comments.filter((c) => c.path && paths.has(c.path)) ?? [];
+    review && section
+      ? review.comments.filter(
+          (c) => c.path && commentBelongs(review, section, c),
+        )
+      : [];
+  /** Other sections that review the rest of a split file. */
+  const sharedWith = (path: string) =>
+    review && section
+      ? owners(review, path).filter((s) => s.id !== section.id)
+      : [];
   const discussion = review?.comments.filter((c) => !c.path) ?? [];
   const sections =
     review?.sections.filter((s) =>
@@ -293,7 +300,10 @@ function App() {
     if (review) tellHost(review, id).catch(() => {});
   }
   function selectFile(path: string) {
-    const owner = review?.sections.find((s) => s.files.includes(path));
+    // Stay in the current section when it owns part of a shared file.
+    const owner = section?.files.includes(path)
+      ? section
+      : review?.sections.find((s) => s.files.includes(path));
     if (owner) setSectionId(owner.id);
     setSelectedFile(path);
   }
@@ -555,7 +565,7 @@ function App() {
                     sections.map((s) => {
                       const index = review.sections.indexOf(s);
                       const count = review.comments.filter(
-                        (c) => c.path && s.files.includes(c.path),
+                        (c) => c.path && commentBelongs(review, s, c),
                       ).length;
                       return (
                         <button
@@ -786,14 +796,23 @@ function App() {
                           Close <X size={13} />
                         </button>
                       </div>
-                      <Diff file={file} />
+                      <Diff
+                        file={file}
+                        sharedWith={sharedWith(file.path)}
+                        onOpenSection={selectSection}
+                      />
                     </div>
                   )}
                 </>
               ) : view === "diff" ? (
                 <div className="diffs-view">
                   {files.map((f) => (
-                    <Diff key={f.path} file={f} />
+                    <Diff
+                      key={f.path}
+                      file={f}
+                      sharedWith={sharedWith(f.path)}
+                      onOpenSection={selectSection}
+                    />
                   ))}
                 </div>
               ) : view === "comments" ? (

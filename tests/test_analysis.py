@@ -2,6 +2,7 @@ import pytest
 
 from review_helper.analysis import apply_plan, compact_review, group_review, module_for, section_detail
 from review_helper.demo import demo_review
+from review_helper.hunks import validate_ownership
 from review_helper.models import FileChange, Relationship, ReviewPlan, Section
 
 
@@ -12,7 +13,10 @@ def plan_for(review):
 def test_demo_sections_cross_architecture_and_cover_every_change():
     review = demo_review()
     paths = [path for s in review.sections for path in s.files]
-    assert len(paths) == len(set(paths)) == len(review.files)
+    # Every file is covered; api/app.py is split by hunks between two sections.
+    assert set(paths) == {f.path for f in review.files}
+    assert len(paths) == len(review.files) + 1
+    validate_ownership(review, review.sections)
     assert {path.split("/")[0] for path in review.sections[0].files} == {"web", "api", "db", "tests"}
     assert {f.status for f in review.files} == {"added", "modified", "deleted"}
     assert len(compact_review(review)["sections"]) == 4
@@ -72,7 +76,7 @@ def test_section_scopes_comments_including_previous_path():
     review.files[0].previous_path = "old.tsx"
     review.comments[0].path = "old.tsx"
     detail = section_detail(review, "collections")
-    assert len(detail["files"]) == 6
+    assert len(detail["files"]) == 7
     assert any(c["path"] == "old.tsx" for c in detail["comments"])
     assert not any(c["path"] is None for c in detail["comments"])
     with pytest.raises(KeyError):

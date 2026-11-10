@@ -17,7 +17,7 @@ def test_api_documents_and_demo(client):
     assert client.get("/api/reviews/demo").json()["id"] == "demo"
     assert client.get("/api/reviews/missing").status_code == 404
     assert client.get("/api/reviews/demo/sections/missing").status_code == 404
-    assert len(client.get("/api/reviews/demo/sections/collections").json()["files"]) == 6
+    assert len(client.get("/api/reviews/demo/sections/collections").json()["files"]) == 7
 
 
 def test_workspace_token_and_cross_origin_protection(client, monkeypatch):

@@ -2211,3 +2211,27 @@ progress::-webkit-progress-value {
 .compact .view-tabs button > span {
   display: inline;
 }
+
+/* A file split across sections */
+.shared-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 13px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--subtle);
+}
+.shared-note .text-button {
+  font-size: 11px;
+}
+.file-node.split > rect {
+  stroke-dasharray: 10 3;
+}
+.split-badge {
+  fill: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+}

@@ -33,6 +33,13 @@ class Comment(StrictModel):
     resolved: bool = False
 
 
+class HunkRef(StrictModel):
+    path: str = Field(description="A changed file that this section shares with other sections.")
+    hunks: list[int] = Field(
+        min_length=1, max_length=500, description="0-based indices of the file's @@ hunks this section owns."
+    )
+
+
 class Section(StrictModel):
     id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,64}$")
     title: str = Field(min_length=1, max_length=100)
@@ -40,6 +47,8 @@ class Section(StrictModel):
     files: list[str] = Field(min_length=1, max_length=500)
     rationale: str = Field(default="", max_length=1000)
     source: Literal["curated", "heuristic", "model"] = "model"
+    # Omit for whole files. When a file serves several features, each section lists its hunks.
+    hunks: list[HunkRef] = Field(default_factory=list, max_length=500)
 
 
 class Relationship(StrictModel):

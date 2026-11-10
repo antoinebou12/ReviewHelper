@@ -8,6 +8,14 @@
     "crap": 26.02
   },
   {
+    "file": "review_helper\\hunks.py",
+    "function": "validate_ownership",
+    "line": 71,
+    "complexity": 22,
+    "line_coverage": 1.0,
+    "crap": 22.0
+  },
+  {
     "file": "review_helper\\providers.py",
     "function": "load_bitbucket",
     "line": 316,
@@ -40,20 +48,20 @@
     "crap": 14.38
   },
   {
+    "file": "review_helper\\analysis.py",
+    "function": "apply_plan",
+    "line": 55,
+    "complexity": 14,
+    "line_coverage": 1.0,
+    "crap": 14.0
+  },
+  {
     "file": "review_helper\\providers.py",
     "function": "__init__",
     "line": 80,
     "complexity": 13,
     "line_coverage": 0.9524,
     "crap": 13.02
-  },
-  {
-    "file": "review_helper\\analysis.py",
-    "function": "apply_plan",
-    "line": 54,
-    "complexity": 13,
-    "line_coverage": 1.0,
-    "crap": 13.0
   },
   {
     "file": "review_helper\\lint.py",
@@ -64,9 +72,9 @@
     "crap": 12.0
   },
   {
-    "file": "review_helper\\analysis.py",
-    "function": "section_detail",
-    "line": 77,
+    "file": "review_helper\\hunks.py",
+    "function": "comment_belongs",
+    "line": 57,
     "complexity": 11,
     "line_coverage": 1.0,
     "crap": 11.0
@@ -112,9 +120,25 @@
     "crap": 9.29
   },
   {
+    "file": "review_helper\\hunks.py",
+    "function": "restrict",
+    "line": 36,
+    "complexity": 9,
+    "line_coverage": 1.0,
+    "crap": 9.0
+  },
+  {
     "file": "review_helper\\analysis.py",
     "function": "group_review",
-    "line": 29,
+    "line": 30,
+    "complexity": 8,
+    "line_coverage": 1.0,
+    "crap": 8.0
+  },
+  {
+    "file": "review_helper\\analysis.py",
+    "function": "section_detail",
+    "line": 80,
     "complexity": 8,
     "line_coverage": 1.0,
     "crap": 8.0
@@ -184,6 +208,14 @@
     "crap": 6.0
   },
   {
+    "file": "review_helper\\hunks.py",
+    "function": "split_patch",
+    "line": 14,
+    "complexity": 6,
+    "line_coverage": 1.0,
+    "crap": 6.0
+  },
+  {
     "file": "review_helper\\lint.py",
     "function": "main",
     "line": 256,
@@ -210,7 +242,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "provider_connection",
-    "line": 110,
+    "line": 111,
     "complexity": 5,
     "line_coverage": 1.0,
     "crap": 5.0
@@ -224,9 +256,17 @@
     "crap": 5.0
   },
   {
+    "file": "review_helper\\mcp_server.py",
+    "function": "manifest",
+    "line": 190,
+    "complexity": 4,
+    "line_coverage": 1.0,
+    "crap": 4.0
+  },
+  {
     "file": "review_helper\\analysis.py",
     "function": "module_for",
-    "line": 15,
+    "line": 16,
     "complexity": 3,
     "line_coverage": 1.0,
     "crap": 3.0
@@ -234,7 +274,7 @@
   {
     "file": "review_helper\\analysis.py",
     "function": "words",
-    "line": 20,
+    "line": 21,
     "complexity": 3,
     "line_coverage": 1.0,
     "crap": 3.0
@@ -264,6 +304,22 @@
     "crap": 3.0
   },
   {
+    "file": "review_helper\\hunks.py",
+    "function": "owned",
+    "line": 31,
+    "complexity": 3,
+    "line_coverage": 1.0,
+    "crap": 3.0
+  },
+  {
+    "file": "review_helper\\hunks.py",
+    "function": "section_files",
+    "line": 53,
+    "complexity": 3,
+    "line_coverage": 1.0,
+    "crap": 3.0
+  },
+  {
     "file": "review_helper\\jira.py",
     "function": "discover",
     "line": 16,
@@ -275,14 +331,6 @@
     "file": "review_helper\\lint.py",
     "function": "check",
     "line": 28,
-    "complexity": 3,
-    "line_coverage": 1.0,
-    "crap": 3.0
-  },
-  {
-    "file": "review_helper\\mcp_server.py",
-    "function": "manifest",
-    "line": 186,
     "complexity": 3,
     "line_coverage": 1.0,
     "crap": 3.0
@@ -314,7 +362,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "workspace_html",
-    "line": 152,
+    "line": 153,
     "complexity": 2,
     "line_coverage": 0.75,
     "crap": 2.06
@@ -330,7 +378,7 @@
   {
     "file": "review_helper\\analysis.py",
     "function": "compact_review",
-    "line": 90,
+    "line": 94,
     "complexity": 2,
     "line_coverage": 1.0,
     "crap": 2.0
@@ -392,6 +440,14 @@
     "crap": 2.0
   },
   {
+    "file": "review_helper\\hunks.py",
+    "function": "new_range",
+    "line": 25,
+    "complexity": 2,
+    "line_coverage": 1.0,
+    "crap": 2.0
+  },
+  {
     "file": "review_helper\\lint.py",
     "function": "check_prompt",
     "line": 172,
@@ -402,7 +458,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "app_result",
-    "line": 41,
+    "line": 42,
     "complexity": 2,
     "line_coverage": 1.0,
     "crap": 2.0
@@ -410,7 +466,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "open_review",
-    "line": 56,
+    "line": 57,
     "complexity": 2,
     "line_coverage": 1.0,
     "crap": 2.0
@@ -418,7 +474,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "propose_review_plan",
-    "line": 74,
+    "line": 75,
     "complexity": 2,
     "line_coverage": 1.0,
     "crap": 2.0
@@ -466,7 +522,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "read_section",
-    "line": 65,
+    "line": 66,
     "complexity": 1,
     "line_coverage": 0.5,
     "crap": 1.12
@@ -474,7 +530,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "review_skill",
-    "line": 202,
+    "line": 210,
     "complexity": 1,
     "line_coverage": 0.5,
     "crap": 1.12
@@ -626,7 +682,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "get_workspace",
-    "line": 91,
+    "line": 92,
     "complexity": 1,
     "line_coverage": 1.0,
     "crap": 1.0
@@ -634,7 +690,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "review_progress",
-    "line": 99,
+    "line": 100,
     "complexity": 1,
     "line_coverage": 1.0,
     "crap": 1.0
@@ -642,7 +698,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "guide",
-    "line": 177,
+    "line": 181,
     "complexity": 1,
     "line_coverage": 1.0,
     "crap": 1.0
@@ -650,7 +706,7 @@
   {
     "file": "review_helper\\mcp_server.py",
     "function": "review_feature",
-    "line": 207,
+    "line": 215,
     "complexity": 1,
     "line_coverage": 1.0,
     "crap": 1.0
@@ -658,7 +714,7 @@
   {
     "file": "review_helper\\models.py",
     "function": "unique",
-    "line": 107,
+    "line": 116,
     "complexity": 1,
     "line_coverage": 1.0,
     "crap": 1.0

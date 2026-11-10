@@ -353,62 +353,83 @@ export function Diagram({
                 </path>
               ))}
             {mode === "topology"
-              ? nodes.map((node) => (
-                  <g
-                    key={node.path}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${node.path}, ${statusLabel[node.status]}`}
-                    aria-pressed={selected === node.path}
-                    className={`file-node ${node.status} ${node.reason ? "nearby" : ""} ${active.has(node.path) ? "in-section" : "outside-section"} ${selected === node.path ? "selected" : ""}`}
-                    onClick={() => onSelect(node.path)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onSelect(node.path);
-                      }
-                    }}
-                  >
-                    <title>
-                      {node.path} · {statusLabel[node.status]}
-                      {node.reason ? ` · ${node.reason}` : ""}
-                    </title>
-                    <rect
-                      x={node.x}
-                      y={node.y}
-                      width="256"
-                      height="53"
-                      rx="8"
-                    />
-                    <text
-                      x={node.x + 12}
-                      y={node.y + 22}
-                      className="node-symbol"
+              ? nodes.map((node) => {
+                  // Files whose hunks are split between feature sections.
+                  const shared = review.sections.filter((s) =>
+                    s.files.includes(node.path),
+                  ).length;
+                  return (
+                    <g
+                      key={node.path}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${node.path}, ${statusLabel[node.status]}${shared > 1 ? `, split across ${shared} sections` : ""}`}
+                      aria-pressed={selected === node.path}
+                      className={`file-node ${node.status} ${node.reason ? "nearby" : ""} ${shared > 1 ? "split" : ""} ${active.has(node.path) ? "in-section" : "outside-section"} ${selected === node.path ? "selected" : ""}`}
+                      onClick={() => onSelect(node.path)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onSelect(node.path);
+                        }
+                      }}
                     >
-                      {statusSymbol[node.status]}
-                    </text>
-                    <text x={node.x + 32} y={node.y + 22} className="node-name">
-                      {node.name.length > 27
-                        ? node.name.slice(0, 25) + "…"
-                        : node.name}
-                    </text>
-                    <text
-                      x={node.x + 32}
-                      y={node.y + 40}
-                      className={
-                        node.reason ? "node-path node-reason" : "node-path"
-                      }
-                    >
-                      {node.reason
-                        ? node.reason.length > 34
-                          ? node.reason.slice(0, 33) + "…"
-                          : node.reason
-                        : node.parent.length > 29
-                          ? "…" + node.parent.slice(-27)
-                          : node.parent}
-                    </text>
-                  </g>
-                ))
+                      <title>
+                        {node.path} · {statusLabel[node.status]}
+                        {node.reason ? ` · ${node.reason}` : ""}
+                        {shared > 1 ? ` · split across ${shared} sections` : ""}
+                      </title>
+                      {shared > 1 && (
+                        <text
+                          x={node.x + 246}
+                          y={node.y + 22}
+                          textAnchor="end"
+                          className="split-badge"
+                        >
+                          split
+                        </text>
+                      )}
+                      <rect
+                        x={node.x}
+                        y={node.y}
+                        width="256"
+                        height="53"
+                        rx="8"
+                      />
+                      <text
+                        x={node.x + 12}
+                        y={node.y + 22}
+                        className="node-symbol"
+                      >
+                        {statusSymbol[node.status]}
+                      </text>
+                      <text
+                        x={node.x + 32}
+                        y={node.y + 22}
+                        className="node-name"
+                      >
+                        {node.name.length > 27
+                          ? node.name.slice(0, 25) + "…"
+                          : node.name}
+                      </text>
+                      <text
+                        x={node.x + 32}
+                        y={node.y + 40}
+                        className={
+                          node.reason ? "node-path node-reason" : "node-path"
+                        }
+                      >
+                        {node.reason
+                          ? node.reason.length > 34
+                            ? node.reason.slice(0, 33) + "…"
+                            : node.reason
+                          : node.parent.length > 29
+                            ? "…" + node.parent.slice(-27)
+                            : node.parent}
+                      </text>
+                    </g>
+                  );
+                })
               : groups.map((g) => {
                   const changed = review.files.filter((f) =>
                     g.paths.includes(f.path),

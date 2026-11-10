@@ -51,7 +51,7 @@ test("feature sections connect layers, search, and expose original diffs", async
   await expect(
     page.getByRole("table", { name: "Diff for web/components/LegacySave.tsx" }),
   ).toBeVisible();
-  await expect(page.locator(".deleted-line")).toHaveCount(6);
+  await expect(page.locator(".deleted-line")).toHaveCount(8);
   await page
     .getByRole("textbox", { name: "Search sections" })
     .fill("no-such-change");
@@ -73,7 +73,7 @@ test("C4, filters, zoom and SVG export work", async ({ page }) => {
   // Default: changed files plus nearby unchanged files, never the whole tree.
   const scope = page.getByRole("group", { name: "Files shown" });
   // Only connected files: imports on changed lines and name matches, each with its reason.
-  await expect(page.locator(".file-node.nearby")).toHaveCount(4);
+  await expect(page.locator(".file-node.nearby")).toHaveCount(5);
   await expect(
     page.getByRole("button", { name: "web/lib/api.ts, Unchanged" }),
   ).toContainText("Imported by useCollections.ts");
@@ -81,7 +81,7 @@ test("C4, filters, zoom and SVG export work", async ({ page }) => {
     page.getByRole("button", { name: "web/pages/Settings.tsx, Unchanged" }),
   ).toHaveCount(0);
   await scope.getByRole("button", { name: "Changed" }).click();
-  await expect(page.locator(".file-node")).toHaveCount(12);
+  await expect(page.locator(".file-node")).toHaveCount(13);
   await expect(page.locator(".file-node.unchanged")).toHaveCount(0);
   await scope.getByRole("button", { name: "All" }).click();
   await expect(
@@ -89,10 +89,10 @@ test("C4, filters, zoom and SVG export work", async ({ page }) => {
   ).toBeVisible();
   await scope.getByRole("button", { name: /Nearby/ }).click();
   await page.getByRole("checkbox", { name: "Focus section" }).check();
-  // The section's 6 files plus the unchanged files around them.
+  // The section's 7 files plus the unchanged files around them.
   await expect(
     page.locator(".file-node.added, .file-node.modified, .file-node.deleted"),
-  ).toHaveCount(6);
+  ).toHaveCount(7);
   await page.getByRole("checkbox", { name: "Focus section" }).uncheck();
   await page.getByRole("button", { name: "Zoom in" }).click();
   await expect(page.getByText("120%", { exact: true })).toBeVisible();
@@ -322,17 +322,21 @@ test("only diagrams with content are offered, including data model and tests", a
       .getByRole("group", { name: "Test map" })
       .getByRole("button", { name: "tests/api/test_collections.py, added" }),
   ).toBeVisible();
-  // A section with one deleted file has no flow, data model or tests to draw.
+  // The clean-up section has no recorded flow and no schema change: no sequence or data model.
   await page
     .getByRole("button", { name: /Retire the local save button/ })
     .click();
-  for (const name of ["Sequence", "Data model", "Tests"])
+  for (const name of ["Sequence", "Data model"])
     await expect(types.getByRole("button", { name, exact: true })).toHaveCount(
       0,
     );
+  // It does change code without changing a test, so the Tests view (still selected) flags it.
   await expect(
-    page.getByRole("group", { name: "Project change map" }),
-  ).toBeVisible();
+    types.getByRole("button", { name: "Tests", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("group", { name: "Test map" })).toContainText(
+    "No changed test covers this",
+  );
 });
 
 test("a one-feature PR gets a smaller interface", async ({ page }) => {
@@ -370,6 +374,7 @@ test("files read foundations first and J/K move between sections", async ({
   await expect(headings).toHaveText([
     "db/models/collection.py",
     "api/services/collections.py",
+    "api/app.py",
     "api/routes/collections.py",
     "web/hooks/useCollections.ts",
     "web/pages/Collections.tsx",
@@ -383,4 +388,46 @@ test("files read foundations first and J/K move between sections", async ({
   await expect(
     page.getByRole("heading", { name: "Create a collection" }),
   ).toBeVisible();
+});
+
+test("a file split across sections shows each section only its hunks", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", {
+      name: "api/app.py, Modified, split across 2 sections",
+    }),
+  ).toContainText("split");
+  await page.getByRole("button", { name: /Diffs/ }).click();
+  const created = page.getByRole("table", { name: "Diff for api/app.py" });
+  await expect(created).toContainText("collections.router");
+  await expect(created).not.toContainText("legacy_save");
+  const block = page.locator(".diff-block", { has: created });
+  await expect(block).toContainText("This section reviews 1 of 2 hunks");
+  // Jump to the section that owns the rest of the file.
+  await block
+    .getByRole("button", { name: "Retire the local save button" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Retire the local save button" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Diffs/ }).click();
+  const retired = page.getByRole("table", { name: "Diff for api/app.py" });
+  await expect(retired).toContainText("legacy_save");
+  await expect(retired).not.toContainText("collections.router");
+  // The line comment in the second hunk belongs to this section only.
+  await page.getByRole("button", { name: /Comments/ }).click();
+  await expect(page.locator(".discussion-view")).toContainText(
+    "legacy save endpoint",
+  );
+  await page.locator("body").press("k");
+  await page.locator("body").press("k");
+  await page.locator("body").press("k");
+  await expect(
+    page.getByRole("heading", { name: "Create a collection" }),
+  ).toBeVisible();
+  await expect(page.locator(".discussion-view")).not.toContainText(
+    "legacy save endpoint",
+  );
 });

@@ -36,7 +36,10 @@ async def test_tools_resources_and_prompt():
     assert workspace.meta["review"]["files"][0]["patch"]
     assert "read_section" in review_feature("demo", "collections")
     assert "untrusted" in guide()
-    assert "patch" not in json.loads(manifest("demo"))["files"][0]
+    files = json.loads(manifest("demo"))["files"]
+    assert "patch" not in files[0]
+    app = next(f for f in files if f["path"] == "api/app.py")
+    assert [h.split(" @@")[0] for h in app["hunks"]] == ["@@ -3,5 +3,6", "@@ -12,4 +13,3"]
     assert "text/html" not in workspace_html()[:15]
     assert "<html" in workspace_html()
 

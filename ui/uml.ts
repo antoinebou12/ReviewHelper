@@ -1,5 +1,6 @@
 /** Pure helpers that turn a review snapshot into simple UML-style views. */
 import type { FileChange, Review, Section, Status } from "./types";
+import { sectionFiles } from "./hunks";
 
 export type SymbolState = "added" | "modified" | "deleted";
 export type CodeSymbol = {
@@ -605,7 +606,7 @@ const isCode = (path: string) =>
 
 /** Which changed tests exercise which changed source files, by relationship or shared name. */
 export function testMapOf(review: Review, section: Section) {
-  const files = review.files.filter((f) => section.files.includes(f.path));
+  const files = sectionFiles(review, section);
   const sources = files.filter((f) => isCode(f.path) && f.status !== "deleted");
   const tests = review.files.filter((f) => isTest(f.path));
   const pairs: ImportLink[] = [];
@@ -636,20 +637,19 @@ export function testMapOf(review: Review, section: Section) {
 /** Diagram types that have something to show for this review and section. */
 export function availableDiagrams(review: Review, section?: Section): string[] {
   const modes: string[] = [];
-  const sectionFiles = section
-    ? review.files.filter((f) => section.files.includes(f.path))
-    : [];
+  const ownFiles = sectionFiles(review, section);
   if (review.files.length) modes.push("topology");
   const prefix = changedPrefix(review.files.map((f) => f.path));
   if (new Set(review.files.map((f) => moduleKey(f.path, prefix))).size > 1)
     modes.push("c4");
   if (review.sections.length > 1) modes.push("usecase");
-  if (section && sequenceOf(review, section).messages.length)
+  // A flow needs at least one recorded relationship; a guessed chain is not content.
+  if (section && sequenceOf(review, section).messages.some((m) => !m.inferred))
     modes.push("sequence");
   // Tables belong to the data model view; the class view needs functions or types.
-  if (sectionFiles.some((f) => symbolsOf(f).some((s) => s.kind !== "table")))
+  if (ownFiles.some((f) => symbolsOf(f).some((s) => s.kind !== "table")))
     modes.push("class");
-  if (dataModelOf(sectionFiles).entities.some((e) => e.state !== "unchanged"))
+  if (dataModelOf(ownFiles).entities.some((e) => e.state !== "unchanged"))
     modes.push("data");
   if (section) {
     const map = testMapOf(review, section);

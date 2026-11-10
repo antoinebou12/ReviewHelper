@@ -25,6 +25,8 @@ export interface Section {
   files: string[];
   rationale: string;
   source: "curated" | "heuristic" | "model";
+  /** When a file is shared by several sections, the 0-based hunks this one owns. */
+  hunks?: { path: string; hunks: number[] }[];
 }
 export interface Relationship {
   source: string;

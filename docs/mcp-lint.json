@@ -505,10 +505,10 @@
       "target": "server",
       "severity": "error",
       "status": "pass",
-      "message": "Estimated model-visible discovery: 1273/4500 tokens."
+      "message": "Estimated model-visible discovery: 1408/4500 tokens."
     }
   ],
-  "estimated_model_tokens": 1273,
+  "estimated_model_tokens": 1408,
   "hosted_manufact_checklist": "not run",
   "real_chatgpt_claude_rendering": "not verified"
 }

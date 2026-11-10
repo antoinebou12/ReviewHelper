@@ -1,7 +1,7 @@
 """A fictional, hand-authored PR illustrating one feature across application layers."""
 
 from .analysis import module_for
-from .models import Comment, FileChange, LinkedIssue, Relationship, Review, Section
+from .models import Comment, FileChange, HunkRef, LinkedIssue, Relationship, Review, Section
 
 
 def demo_review() -> Review:
@@ -90,6 +90,14 @@ def demo_review() -> Review:
             8,
             '@@ -1,4 +1,5 @@\n-test("saves locally", () => {\n-  expect(localStorage.getItem("article")).toBe("saved");\n+test("saves to a collection", async () => {\n+  await user.click(screen.getByRole("button", { name: "Save" }));\n+  expect(screen.getByText("Choose a collection")).toBeVisible();\n });',
         ),
+        (
+            "api/app.py",
+            "modified",
+            2,
+            2,
+            "@@ -3,5 +3,6 @@ from fastapi import FastAPI\n from api.routes import auth, bookmarks\n+from api.routes import collections\n \n app = FastAPI()\n app.include_router(auth.router)\n+app.include_router(collections.router)\n"
+            "@@ -12,4 +13,3 @@ app.include_router(bookmarks.router)\n # Legacy endpoints\n-from api.routes import legacy_save\n-app.include_router(legacy_save.router)\n app.add_middleware(TimingMiddleware)",
+        ),
     ]
     files = [
         FileChange(
@@ -108,7 +116,8 @@ def demo_review() -> Review:
             id="collections",
             title="Create a collection",
             summary="A new collections page connects to an authenticated API and a persistent collection model. Includes the first API test.",
-            files=[f.path for f in files[:6]],
+            files=[f.path for f in files[:6]] + [files[12].path],
+            hunks=[HunkRef(path=files[12].path, hunks=[0])],
             source="curated",
             rationale="Follow a collection from the page, through the API, to storage and its test.",
         ),
@@ -132,7 +141,8 @@ def demo_review() -> Review:
             id="cleanup",
             title="Retire the local save button",
             summary="Remove the old component that kept saved articles in browser storage.",
-            files=[files[10].path],
+            files=[files[10].path, files[12].path],
+            hunks=[HunkRef(path=files[12].path, hunks=[1])],
             source="curated",
             rationale="Confirm that no callers still depend on the removed component.",
         ),
@@ -148,6 +158,7 @@ def demo_review() -> Review:
         (8, 4, "belongs to"),
         (9, 4, "defines"),
         (11, 6, "tests"),
+        (12, 2, "registers"),
     ]
     return Review(
         id="demo",
@@ -227,6 +238,13 @@ def demo_review() -> Review:
                 path=files[9].path,
                 line=5,
                 body="Existing bookmarks will have no collection. Should the UI show an Unsorted group?",
+            ),
+            Comment(
+                id="c7",
+                author="Sam Rivera",
+                path="api/app.py",
+                line=14,
+                body="Is anything outside the web app still calling the legacy save endpoint?",
             ),
             Comment(
                 id="c5",

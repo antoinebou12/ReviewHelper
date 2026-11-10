@@ -1,7 +1,7 @@
 /** Original provider diff, as one unified column or side by side (old | new). */
 import { useEffect, useState } from "react";
-import { Columns2, FileCode2, Rows3 } from "lucide-react";
-import type { FileChange } from "./types";
+import { Columns2, FileCode2, Rows3, Split } from "lucide-react";
+import type { FileChange, Section } from "./types";
 import { statusLabel } from "./types";
 
 export type DiffLayout = "unified" | "split";
@@ -102,7 +102,16 @@ const rowClass = (kind?: Kind) =>
         ? ""
         : "empty-side";
 
-export function Diff({ file }: { file: FileChange }) {
+export function Diff({
+  file,
+  sharedWith = [],
+  onOpenSection,
+}: {
+  file: FileChange;
+  /** Other sections that review the remaining hunks of this file. */
+  sharedWith?: Section[];
+  onOpenSection?: (id: string) => void;
+}) {
   const [layout, setLayout] = useDiffLayout();
   const lines = file.patch ? parsePatch(file.patch) : [];
   return (
@@ -229,6 +238,20 @@ export function Diff({ file }: { file: FileChange }) {
       )}
       {file.patch && file.patch_note && (
         <div className="patch-note">{file.patch_note}</div>
+      )}
+      {sharedWith.length > 0 && (
+        <div className="shared-note">
+          <Split size={13} /> The rest of this file is reviewed in:
+          {sharedWith.map((s) => (
+            <button
+              key={s.id}
+              className="text-button"
+              onClick={() => onOpenSection?.(s.id)}
+            >
+              {s.title}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

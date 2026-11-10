@@ -4,6 +4,7 @@ import re
 from collections import Counter, defaultdict
 from pathlib import PurePosixPath
 
+from .hunks import comment_belongs, section_files, validate_ownership
 from .models import Review, ReviewPlan, Section
 
 STOP_WORDS = frozenset(
@@ -52,15 +53,17 @@ def group_review(review: Review) -> Review:
 
 
 def apply_plan(review: Review, plan: ReviewPlan) -> Review:
-    """Reject invented paths, omitted files, duplicate ownership, and invalid edges."""
+    """Reject invented paths, omitted files or hunks, duplicate ownership, and invalid edges."""
     changed = {file.path for file in review.files}
-    assigned = [path for section in plan.sections for path in section.files]
     if len({section.id for section in plan.sections}) != len(plan.sections):
         raise ValueError("Section IDs must be unique.")
-    if len(assigned) != len(set(assigned)):
-        raise ValueError("Each changed file must belong to exactly one section.")
-    if set(assigned) != changed:
-        raise ValueError("The plan must include every changed file exactly once, with no invented paths.")
+    for section in plan.sections:
+        if len(section.files) != len(set(section.files)):
+            raise ValueError(f"Section {section.id} lists a file twice.")
+    if {path for section in plan.sections for path in section.files} != changed:
+        raise ValueError("The plan must include every changed file, with no invented paths.")
+    # A file may appear in several sections only when they split its hunks between them.
+    validate_ownership(review, plan.sections)
     known = changed | set(review.tree)
     for edge in plan.relationships:
         if edge.source not in known or edge.target not in known or edge.source == edge.target:
@@ -78,12 +81,13 @@ def section_detail(review: Review, section_id: str) -> dict:
     section = next((section for section in review.sections if section.id == section_id), None)
     if section is None:
         raise KeyError(section_id)
-    files = [file for file in review.files if file.path in section.files]
-    paths = set(section.files) | {file.previous_path for file in files if file.previous_path}
+    # Split files contribute only this section's hunks, keeping the evidence packet small.
     return {
         "section": section.model_dump(),
-        "files": [file.model_dump() for file in files],
-        "comments": [comment.model_dump() for comment in review.comments if comment.path in paths],
+        "files": [file.model_dump() for file in section_files(review, section)],
+        "comments": [
+            c.model_dump() for c in review.comments if c.path and comment_belongs(review, section, c)
+        ],
     }
 
 
