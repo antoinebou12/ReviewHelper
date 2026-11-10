@@ -106,16 +106,16 @@ def test_azure_api_routes(client, monkeypatch):
 
 
 async def test_azure_mcp_tool(monkeypatch):
-    from review_helper.mcp_server import azure_connection
+    from review_helper.mcp_server import provider_connection
 
     monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
-    assert (await azure_connection("status"))["configured"] is False
-    assert (await azure_connection("logout")) == {"signed_in": False}
-    assert (await azure_connection("poll", "missing"))["status"] == "expired"
+    assert (await provider_connection("azure", "status"))["configured"] is False
+    assert (await provider_connection("azure", "logout")) == {"signed_in": False}
+    assert (await provider_connection("azure", "poll", "missing"))["status"] == "expired"
     with pytest.raises(ValueError, match="login ID"):
-        await azure_connection("poll")
+        await provider_connection("azure", "poll")
     with pytest.raises(LoginError):
-        await azure_connection("start")
+        await provider_connection("azure", "start")
 
 
 def review_with_links():
@@ -237,3 +237,58 @@ def test_lint_cli(monkeypatch, tmp_path, capsys):
     assert exit_info.value.code == 0
     assert json.loads(out.read_text())["passed"]
     assert "PASS" in capsys.readouterr().out
+
+
+async def test_github_device_flow(monkeypatch):
+    from review_helper.entra import GitHubLogin
+    from review_helper.providers import ProviderClient, parse_url
+
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "Iv23liABCDEF123456")
+    monkeypatch.setenv("GITHUB_OAUTH_SCOPE", "repo")
+    monkeypatch.delenv("VERCEL", raising=False)
+    sent = []
+
+    def handler(request: httpx.Request):
+        sent.append((request.url.host, request.url.path, request.content.decode()))
+        assert request.headers["accept"] == "application/json"
+        if request.url.path == "/login/device/code":
+            return httpx.Response(
+                200, json={"device_code": "dc", "user_code": "WXYZ-1234", "expires_in": 900, "interval": 0}
+            )
+        # GitHub answers 200 even for pending/denied states.
+        return httpx.Response(200, json={"access_token": "gho_secret", "token_type": "bearer"})
+
+    login = GitHubLogin()
+    transport = httpx.MockTransport(handler)
+    started = await login.start(transport)
+    assert started["verification_uri"] == "https://github.com/login/device"
+    assert "scope=repo" in sent[0][2]
+    assert await login.poll(started["login_id"], transport) == {"status": "authenticated"}
+    assert sent[-1][:2] == ("github.com", "/login/oauth/access_token")
+    assert login.expires_at > time.time() + 7 * 3600  # OAuth App tokens have no expires_in
+
+    monkeypatch.setattr("review_helper.providers.github_login", login)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    client = ProviderClient(parse_url("https://github.com/a/b/pull/1"))
+    assert client.http.headers["authorization"] == "Bearer gho_secret"
+    monkeypatch.setenv("GITHUB_TOKEN", "server-token")
+    client = ProviderClient(parse_url("https://github.com/a/b/pull/1"))
+    assert client.http.headers["authorization"] == "Bearer server-token"
+
+
+def test_github_login_validation_and_routes(client, monkeypatch):
+    from review_helper.entra import GitHubLogin
+
+    monkeypatch.delenv("GITHUB_CLIENT_ID", raising=False)
+    with pytest.raises(LoginError, match="GITHUB_CLIENT_ID"):
+        GitHubLogin().settings()
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "Iv23liABCDEF123456")
+    monkeypatch.setenv("GITHUB_OAUTH_SCOPE", "repo; drop")
+    with pytest.raises(LoginError, match="SCOPE"):
+        GitHubLogin().settings()
+    monkeypatch.delenv("GITHUB_CLIENT_ID")
+    assert client.get("/api/config").json()["github_oauth"]["configured"] is False
+    response = client.post("/api/auth/github/start")
+    assert response.status_code == 400 and "GITHUB_CLIENT_ID" in response.json()["detail"]
+    assert client.post("/api/auth/github/logout").json() == {"signed_in": False}
+    assert client.post("/api/auth/gitlab/start").status_code == 404

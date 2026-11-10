@@ -212,6 +212,20 @@ def demo_review() -> Review:
                 author="Alex Chen",
                 body="Example discussion: the migration keeps existing bookmarks readable.",
             ),
+            Comment(
+                id="c6",
+                author="preview-bot[bot]",
+                body=(
+                    "[pb]: #eyJoaWRkZW4iOiJtZXRhZGF0YSJ9\n"
+                    "<!-- deployment metadata -->\n"
+                    "Preview for **reading-room** is ready. Learn more in the [docs](https://example.com/docs).\n\n"
+                    "| Project | Status | Preview |\n| :--- | :--- | :--- |\n"
+                    '| <a href="https://example.com/p"><img alt="" src="x" /></a> reading-room '
+                    '| ![Ready](https://example.com/ready.svg) Ready '
+                    "| [Open preview](https://preview.example.com) |\n"
+                    "<script>alert(1)</script>"
+                ),
+            ),
         ],
         issues=[
             LinkedIssue(

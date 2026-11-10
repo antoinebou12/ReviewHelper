@@ -1,10 +1,34 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, LogIn, ShieldCheck, LoaderCircle } from "lucide-react";
-import { azureConnection } from "./api";
+import { providerConnection, type LoginProvider } from "./api";
 import type { Review } from "./types";
 import { safeLink } from "./types";
 
-export function AzureConnection() {
+const LOGIN_COPY: Record<
+  LoginProvider,
+  { label: string; title: string; text: string; brand: string; env: string }
+> = {
+  azure: {
+    label: "Microsoft Entra login",
+    title: "Azure DevOps with Microsoft Entra",
+    text: "Sign in with your organization account to read protected pull requests. Your tenant's access policies apply.",
+    brand: "Microsoft",
+    env: "AZURE_CLIENT_ID and AZURE_TENANT_ID",
+  },
+  github: {
+    label: "GitHub login",
+    title: "GitHub sign-in",
+    text: "Sign in to read private pull requests. Access follows the GitHub App's read-only permissions and your account.",
+    brand: "GitHub",
+    env: "GITHUB_CLIENT_ID",
+  },
+};
+
+export const AzureConnection = () => <ProviderLogin provider="azure" />;
+export const GitHubConnection = () => <ProviderLogin provider="github" />;
+
+export function ProviderLogin({ provider }: { provider: LoginProvider }) {
+  const copy = LOGIN_COPY[provider];
   const [state, setState] = useState({ configured: false, signed_in: false });
   const [flow, setFlow] = useState<{
     login_id: string;
@@ -15,7 +39,7 @@ export function AzureConnection() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    azureConnection("status")
+    providerConnection(provider, "status")
       .then(setState)
       .catch((e) => setError(e.message));
   }, []);
@@ -25,7 +49,11 @@ export function AzureConnection() {
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const result = await azureConnection("poll", flow.login_id);
+        const result = await providerConnection(
+          provider,
+          "poll",
+          flow.login_id,
+        );
         if (cancelled) return;
         if (result.status === "authenticated") {
           setState({ configured: true, signed_in: true });
@@ -53,7 +81,7 @@ export function AzureConnection() {
     setBusy(true);
     setError("");
     try {
-      setFlow(await azureConnection("start"));
+      setFlow(await providerConnection(provider, "start"));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -61,22 +89,19 @@ export function AzureConnection() {
     }
   }
   return (
-    <section className="entra-panel" aria-label="Microsoft Entra login">
+    <section className="entra-panel" aria-label={copy.label}>
       <h3>
-        <ShieldCheck size={15} /> Azure DevOps with Microsoft Entra
+        <ShieldCheck size={15} /> {copy.title}
       </h3>
-      <p>
-        Sign in with your organization account to read protected pull requests.
-        Your tenant's access policies apply.
-      </p>
+      <p>{copy.text}</p>
       {state.signed_in ? (
         <div className="connected-row">
-          <span className="connection-on">Signed in to Microsoft</span>
+          <span className="connection-on">Signed in to {copy.brand}</span>
           <button
             className="text-button"
             onClick={async () => {
               try {
-                await azureConnection("logout");
+                await providerConnection(provider, "logout");
                 setState({ ...state, signed_in: false });
               } catch (e) {
                 setError((e as Error).message);
@@ -88,15 +113,17 @@ export function AzureConnection() {
         </div>
       ) : flow ? (
         <div className="device-flow">
-          <p>Enter this code on Microsoft's sign-in page:</p>
-          <code aria-label="Microsoft sign-in code">{flow.user_code}</code>
+          <p>Enter this code on {copy.brand}'s sign-in page:</p>
+          <code aria-label={`${copy.brand} sign-in code`}>
+            {flow.user_code}
+          </code>
           <a
             className="button primary"
             href={safeLink(flow.verification_uri)}
             target="_blank"
             rel="noreferrer"
           >
-            Continue with Microsoft <ExternalLink size={13} />
+            Continue with {copy.brand} <ExternalLink size={13} />
           </a>
           <span role="status">
             <LoaderCircle size={12} className="spin" /> Waiting for sign-in…
@@ -113,12 +140,11 @@ export function AzureConnection() {
             ) : (
               <LogIn size={15} />
             )}{" "}
-            Sign in with Microsoft
+            Sign in with {copy.brand}
           </button>
           {!state.configured && (
             <p className="subtle-caption">
-              Set AZURE_CLIENT_ID and AZURE_TENANT_ID in the server environment
-              first.
+              Set {copy.env} in the server environment first.
             </p>
           )}
         </>

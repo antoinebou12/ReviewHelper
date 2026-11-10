@@ -1787,3 +1787,248 @@ progress::-webkit-progress-value {
     flex-wrap: wrap;
   }
 }
+/* UML-style views: sequence, class, use case */
+.uml-muted {
+  fill: var(--muted);
+  font-size: 11px;
+}
+.uml-stereo {
+  fill: var(--muted);
+  font-size: 10px;
+  font-style: italic;
+}
+.uml-divider {
+  stroke: var(--line);
+}
+.file-node.added .uml-divider {
+  stroke: var(--green-line);
+}
+.file-node.modified .uml-divider {
+  stroke: var(--yellow-line);
+}
+.uml-member {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  fill: var(--text);
+}
+.uml-member.added {
+  fill: var(--green);
+}
+.uml-member.modified {
+  fill: var(--yellow);
+}
+.uml-member.deleted {
+  fill: var(--red);
+  text-decoration: line-through;
+}
+.seq-lifeline {
+  stroke: var(--muted);
+  stroke-dasharray: 4 5;
+  opacity: 0.5;
+}
+.seq-message line,
+.seq-message path {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  fill: none;
+}
+.seq-message.inferred line,
+.seq-message.inferred path {
+  stroke-dasharray: 5 4;
+}
+.seq-label {
+  fill: var(--text);
+  font-size: 11px;
+}
+.uc-boundary {
+  fill: var(--subtle);
+  fill-opacity: 0.6;
+  stroke: var(--line);
+}
+.uc-actor circle,
+.uc-actor path {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.uc-link {
+  stroke: var(--muted);
+  opacity: 0.35;
+}
+.uc-link.touches {
+  stroke-dasharray: 4 4;
+}
+.uc-link.active {
+  stroke: var(--accent);
+  opacity: 0.9;
+  stroke-width: 1.5;
+}
+.uc-case {
+  cursor: pointer;
+  outline: none;
+}
+.uc-case ellipse {
+  fill: var(--surface);
+  stroke: var(--line);
+}
+.uc-case.added ellipse {
+  fill: var(--green-bg);
+  stroke: var(--green-line);
+}
+.uc-case.modified ellipse {
+  fill: var(--yellow-bg);
+  stroke: var(--yellow-line);
+}
+.uc-case.deleted ellipse {
+  fill: var(--red-bg);
+  stroke: var(--red-line);
+}
+.uc-case.active ellipse,
+.uc-case:hover ellipse,
+.uc-case:focus-visible ellipse {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.uc-title {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.segmented button {
+  white-space: nowrap;
+  flex: none;
+}
+/* Side-by-side diff */
+.diff-layout {
+  margin-left: 4px;
+}
+.diff-layout button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.diff-table.split {
+  table-layout: fixed;
+  white-space: pre-wrap;
+}
+.diff-table.split col.num {
+  width: 46px;
+}
+.diff-table.split td.side {
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.diff-table.split td.side + td.line-number {
+  border-left: 1px solid var(--line);
+}
+.diff-table.split td.added-line {
+  background: var(--green-bg);
+}
+.diff-table.split td.deleted-line {
+  background: var(--red-bg);
+}
+.diff-table.split td.empty-side {
+  background: var(--subtle);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Formatted comments */
+.markdown {
+  font-size: 12px;
+  line-height: 1.65;
+  margin-top: 9px;
+  overflow-wrap: anywhere;
+}
+.discussion-view .markdown {
+  font-size: 13px;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.comment .markdown p {
+  margin: 0 0 8px;
+  white-space: normal;
+  line-height: 1.65;
+}
+.markdown ul,
+.markdown ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  background: var(--subtle);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.markdown .md-code {
+  background: var(--subtle);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  overflow: auto;
+  margin: 0 0 8px;
+}
+.markdown .md-code code {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+.markdown .md-heading {
+  font-weight: 650;
+  margin: 10px 0 6px;
+}
+.markdown .md-quote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.markdown .md-image {
+  display: inline-block;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.md-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 8px;
+}
+.md-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  min-width: 100%;
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  text-align: left;
+  overflow-wrap: normal;
+}
+.md-table th {
+  background: var(--subtle);
+  font-weight: 600;
+}
+.bot-comment summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+}

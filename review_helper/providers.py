@@ -13,7 +13,7 @@ from uuid import uuid4
 import httpx
 
 from .analysis import group_review
-from .entra import entra
+from .entra import entra, github_login
 from .jira import load_issues
 from .models import Comment, FileChange, Review
 
@@ -87,6 +87,8 @@ class ProviderClient:
         self.warnings: list[str] = []
         headers = {"Accept": "application/json", "User-Agent": "review-helper/0.1"}
         token = token or os.getenv(TOKEN_ENV[location.provider])
+        if location.provider == "github" and not token:
+            token = github_login.token()
         if token:
             if location.provider == "gitlab":
                 headers["PRIVATE-TOKEN"] = token

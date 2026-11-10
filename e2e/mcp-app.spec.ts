@@ -1,11 +1,20 @@
-import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Page,
+  type APIRequestContext,
+} from "@playwright/test";
 
 /**
  * A minimal MCP Apps host. With `inline`, the tool result carries the whole review in _meta
  * (older servers). Otherwise it carries only review_id, and the viewer must call the
  * app-only get_workspace tool, which is how the Python server behaves today.
  */
-async function mountHost(page: Page, request: APIRequestContext, inline: boolean) {
+async function mountHost(
+  page: Page,
+  request: APIRequestContext,
+  inline: boolean,
+) {
   const review = await (await request.get("/api/demo")).json();
   const encoded = JSON.stringify(review).replace(/</g, "\\u003c");
   await page.route("**/test-host", (route) =>
@@ -44,20 +53,29 @@ async function mountHost(page: Page, request: APIRequestContext, inline: boolean
   return { frame: page.frameLocator("iframe"), rest };
 }
 
-const hostCalls = (page: Page) => page.evaluate(() => (window as any).hostCalls as any[]);
+const hostCalls = (page: Page) =>
+  page.evaluate(() => (window as any).hostCalls as any[]);
 
 test("embedded app initializes through MCP Apps and uses host tools without REST fetches", async ({
   page,
   request,
 }) => {
   const { frame, rest } = await mountHost(page, request, true);
-  await expect(frame.getByRole("heading", { name: "Give saved articles a home" })).toBeVisible();
-  await frame.getByRole("button", { name: "Mark reviewed", exact: true }).click();
-  await expect(frame.getByRole("button", { name: "Reviewed", exact: true })).toBeVisible();
+  await expect(
+    frame.getByRole("heading", { name: "Give saved articles a home" }),
+  ).toBeVisible();
+  await frame
+    .getByRole("button", { name: "Mark reviewed", exact: true })
+    .click();
+  await expect(
+    frame.getByRole("button", { name: "Reviewed", exact: true }),
+  ).toBeVisible();
   expect(rest).toEqual([]);
   expect(
     (await hostCalls(page)).some(
-      (c) => c.name === "review_progress" && c.arguments.sections?.includes("collections"),
+      (c) =>
+        c.name === "review_progress" &&
+        c.arguments.sections?.includes("collections"),
     ),
   ).toBe(true);
 });
@@ -67,9 +85,15 @@ test("compact tool result loads the snapshot through the app-only get_workspace 
   request,
 }) => {
   const { frame, rest } = await mountHost(page, request, false);
-  await expect(frame.getByRole("heading", { name: "Give saved articles a home" })).toBeVisible();
-  await expect(frame.getByRole("group", { name: "Project change map" })).toBeVisible();
+  await expect(
+    frame.getByRole("heading", { name: "Give saved articles a home" }),
+  ).toBeVisible();
+  await expect(
+    frame.getByRole("group", { name: "Project change map" }),
+  ).toBeVisible();
   expect(rest).toEqual([]);
   const calls = await hostCalls(page);
-  expect(calls.find((c) => c.name === "get_workspace")?.arguments).toEqual({ review_id: "demo" });
+  expect(calls.find((c) => c.name === "get_workspace")?.arguments).toEqual({
+    review_id: "demo",
+  });
 });

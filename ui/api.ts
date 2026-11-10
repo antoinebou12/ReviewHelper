@@ -94,25 +94,35 @@ async function workspace(review_id: string): Promise<Review> {
   return result._meta.review as Review;
 }
 
-export async function azureConnection(
+export type LoginProvider = "azure" | "github";
+const loginNames: Record<LoginProvider, string> = {
+  azure: "Microsoft. Configure AZURE_CLIENT_ID and AZURE_TENANT_ID",
+  github: "GitHub. Configure GITHUB_CLIENT_ID",
+};
+export async function providerConnection(
+  provider: LoginProvider,
   action: "status" | "start" | "poll" | "logout",
   login_id?: string,
 ): Promise<any> {
   if (embedded && bridge) {
     const result = await bridge.callServerTool({
-      name: "azure_connection",
-      arguments: { action, login_id },
+      name: "provider_connection",
+      arguments: { provider, action, login_id },
     });
     if (result.isError)
       throw new Error(
-        "Could not connect to Microsoft. Configure AZURE_CLIENT_ID and AZURE_TENANT_ID on the server.",
+        `Could not connect to ${loginNames[provider]} on the server.`,
       );
     return result.structuredContent;
   }
-  if (action === "status")
-    return (await api<{ azure: unknown }>("/api/config")).azure;
+  if (action === "status") {
+    const config = await api<{ azure: unknown; github_oauth: unknown }>(
+      "/api/config",
+    );
+    return provider === "azure" ? config.azure : config.github_oauth;
+  }
   return api(
-    `/api/auth/azure/${action === "poll" ? `poll/${encodeURIComponent(login_id!)}` : action}`,
+    `/api/auth/${provider}/${action === "poll" ? `poll/${encodeURIComponent(login_id!)}` : action}`,
     { method: "POST" },
   );
 }

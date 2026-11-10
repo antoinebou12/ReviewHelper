@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from . import store
 from .analysis import apply_plan, section_detail
 from .demo import demo_review
-from .entra import LoginError, entra
+from .entra import LoginError, entra, logins
 from .mcp_server import mcp
 from .models import ImportRequest, PlanRequest, Review, ReviewProgress
 from .providers import TOKEN_ENV, ProviderClient, ProviderError, parse_url
@@ -78,22 +78,30 @@ def config() -> dict:
         "auth_enabled": bool(os.getenv("REVIEW_HELPER_ACCESS_TOKEN")),
         "mode": "single-user",
         "azure": entra.status(),
+        "github_oauth": logins["github"].status(),
     }
 
 
-@app.post("/api/auth/azure/start", tags=["Connections"])
-async def azure_start() -> dict:
-    return await entra.start()
+def login_for(provider: str):
+    if provider not in logins:
+        raise HTTPException(404, "Unknown sign-in provider.")
+    return logins[provider]
 
 
-@app.post("/api/auth/azure/poll/{login_id}", tags=["Connections"])
-async def azure_poll(login_id: str) -> dict:
-    return await entra.poll(login_id)
+@app.post("/api/auth/{provider}/start", tags=["Connections"])
+async def login_start(provider: str) -> dict:
+    """Start device sign-in (azure or github). Returns a user code, never a token."""
+    return await login_for(provider).start()
 
 
-@app.post("/api/auth/azure/logout", tags=["Connections"])
-def azure_logout() -> dict:
-    return entra.logout()
+@app.post("/api/auth/{provider}/poll/{login_id}", tags=["Connections"])
+async def login_poll(provider: str, login_id: str) -> dict:
+    return await login_for(provider).poll(login_id)
+
+
+@app.post("/api/auth/{provider}/logout", tags=["Connections"])
+def login_logout(provider: str) -> dict:
+    return login_for(provider).logout()
 
 
 @app.get("/api/demo", response_model=Review, tags=["Reviews"])

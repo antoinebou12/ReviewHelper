@@ -33,8 +33,10 @@ import {
   setAccessToken,
   tellHost,
 } from "./api";
-import { Diagram } from "./Diagram";
-import { AzureConnection, JiraTable } from "./Connections";
+import { Diagram, type DiagramMode } from "./Diagram";
+import { Diff } from "./Diff";
+import { Markdown } from "./Markdown";
+import { AzureConnection, GitHubConnection, JiraTable } from "./Connections";
 import {
   safeLink,
   statusLabel,
@@ -87,82 +89,6 @@ function Modal({
   );
 }
 
-function Diff({ file }: { file: FileChange }) {
-  let old = 0,
-    next = 0;
-  return (
-    <div className="diff-block">
-      <div className="diff-heading">
-        <FileCode2 size={16} />
-        <span>{file.path}</span>
-        <span className={`status-label ${file.status}`}>
-          {statusLabel[file.status]}
-        </span>
-        <span className="diff-count">
-          <span>+{file.additions}</span>
-          <span>−{file.deletions}</span>
-        </span>
-      </div>
-      {file.previous_path && file.previous_path !== file.path && (
-        <div className="patch-note">Previously {file.previous_path}</div>
-      )}
-      {file.patch ? (
-        <div className="diff-scroll">
-          <table className="diff-table" aria-label={`Diff for ${file.path}`}>
-            <tbody>
-              {file.patch.split("\n").map((line, i) => {
-                const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
-                if (hunk) {
-                  old = Number(hunk[1]);
-                  next = Number(hunk[2]);
-                }
-                const metadata =
-                  hunk ||
-                  line.startsWith("---") ||
-                  line.startsWith("+++") ||
-                  line.startsWith("diff ") ||
-                  line.startsWith("index ") ||
-                  line.startsWith("\\");
-                const added = !metadata && line.startsWith("+"),
-                  removed = !metadata && line.startsWith("-");
-                const oldLine = metadata || added ? "" : old++,
-                  newLine = metadata || removed ? "" : next++;
-                return (
-                  <tr
-                    key={i}
-                    className={
-                      hunk
-                        ? "hunk"
-                        : added
-                          ? "added-line"
-                          : removed
-                            ? "deleted-line"
-                            : ""
-                    }
-                  >
-                    <td className="line-number">{oldLine}</td>
-                    <td className="line-number">{newLine}</td>
-                    <td>
-                      <code>{line || " "}</code>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="empty-small">
-          {file.patch_note || "This file has no available text diff."}
-        </div>
-      )}
-      {file.patch && file.patch_note && (
-        <div className="patch-note">{file.patch_note}</div>
-      )}
-    </div>
-  );
-}
-
 function Comments({ comments, demo }: { comments: Comment[]; demo: boolean }) {
   return (
     <div className="comments-list">
@@ -185,7 +111,16 @@ function Comments({ comments, demo }: { comments: Comment[]; demo: boolean }) {
                 </span>
               )}
             </div>
-            <p>{comment.body}</p>
+            {/\[bot\]$|^(vercel|github-actions|dependabot|renovate|codecov|sonarcloud)/i.test(
+              comment.author,
+            ) ? (
+              <details className="bot-comment">
+                <summary>Automated comment · show details</summary>
+                <Markdown text={comment.body} />
+              </details>
+            ) : (
+              <Markdown text={comment.body} />
+            )}
             <div className="comment-location">
               {comment.path
                 ? `${comment.path.split("/").at(-1)}${comment.line ? `:${comment.line}` : ""}`
@@ -220,7 +155,7 @@ function App() {
   const [sectionId, setSectionId] = useState("collections");
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [view, setView] = useState<"map" | "diff" | "comments" | "jira">("map");
-  const [diagram, setDiagram] = useState<"topology" | "c4">("topology");
+  const [diagram, setDiagram] = useState<DiagramMode>("topology");
   const [query, setQuery] = useState("");
   const [reviewed, setReviewed] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -707,20 +642,24 @@ function App() {
                 </nav>
                 {view === "map" && (
                   <div className="segmented" aria-label="Diagram type">
-                    <button
-                      aria-pressed={diagram === "topology"}
-                      className={diagram === "topology" ? "active" : ""}
-                      onClick={() => setDiagram("topology")}
-                    >
-                      Topology
-                    </button>
-                    <button
-                      aria-pressed={diagram === "c4"}
-                      className={diagram === "c4" ? "active" : ""}
-                      onClick={() => setDiagram("c4")}
-                    >
-                      C4
-                    </button>
+                    {(
+                      [
+                        ["topology", "Topology"],
+                        ["c4", "C4"],
+                        ["usecase", "Use case"],
+                        ["sequence", "Sequence"],
+                        ["class", "Class"],
+                      ] as [DiagramMode, string][]
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        aria-pressed={diagram === value}
+                        className={diagram === value ? "active" : ""}
+                        onClick={() => setDiagram(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -745,6 +684,7 @@ function App() {
                     selected={selectedFile}
                     mode={diagram}
                     onSelect={selectFile}
+                    onSelectSection={selectSection}
                   />
                   {file && (
                     <div className="selected-diff">
@@ -999,6 +939,7 @@ function App() {
             </form>
           )}
           <h3>Provider connections</h3>
+          <GitHubConnection />
           <AzureConnection />
           <div className="connection-list">
             {[

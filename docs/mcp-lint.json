@@ -369,70 +369,70 @@
     },
     {
       "checkId": "tool-title-present",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Tools need a top-level display title."
     },
     {
       "checkId": "tool-description-present",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Describe the purpose and result of the tool."
     },
     {
       "checkId": "tool-name-format",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Tool names use supported characters and fit the 64-character limit."
     },
     {
       "checkId": "tool-hints-present",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Declare read-only, destructive, open-world, and idempotency hints."
     },
     {
       "checkId": "tool-input-schema-type",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Input schema is an object."
     },
     {
       "checkId": "tool-input-schema-valid",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "JSON Schema and required fields are valid."
     },
     {
       "checkId": "prop-description",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Every parameter has a description."
     },
     {
       "checkId": "claude-code-metadata-length",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Description stays within 2 KB."
     },
     {
       "checkId": "tool-text-hidden-characters",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "No hidden control characters in tool text."
     },
     {
       "checkId": "tool-visibility-valid",
-      "target": "azure_connection",
+      "target": "provider_connection",
       "severity": "error",
       "status": "pass",
       "message": "Visibility contains model and/or app without duplicates."

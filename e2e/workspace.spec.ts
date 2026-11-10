@@ -70,11 +70,14 @@ test("C4, filters, zoom and SVG export work", async ({ page }) => {
     page.getByText("[Container · directory-derived]", { exact: true }),
   ).toHaveCount(4);
   await page.getByRole("button", { name: "Topology", exact: true }).click();
+  // Only changed files are drawn until the reviewer asks for context.
+  await expect(page.locator(".file-node")).toHaveCount(12);
+  await page.getByRole("checkbox", { name: "Show unchanged files" }).check();
+  await expect(page.locator(".file-node.unchanged")).not.toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Show unchanged files" }).uncheck();
   await page.getByRole("checkbox", { name: "Focus section" }).check();
   await expect(page.locator(".file-node")).toHaveCount(6);
   await page.getByRole("checkbox", { name: "Focus section" }).uncheck();
-  await page.getByRole("checkbox", { name: "Changed only" }).check();
-  await expect(page.locator(".file-node")).toHaveCount(12);
   await page.getByRole("button", { name: "Zoom in" }).click();
   await expect(page.getByText("120%", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Reset zoom" }).click();
@@ -205,4 +208,85 @@ test("mobile layout keeps controls visible without page overflow", async ({
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();
   expect(results.violations).toEqual([]);
+});
+
+test("use case, sequence and class views explain the selected section", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Use case", exact: true }).click();
+  await expect(
+    page.getByRole("group", { name: "Use case diagram" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Use case Save articles to collections" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Save articles to collections" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /Create a collection/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Sequence", exact: true }).click();
+  const sequence = page.getByRole("group", { name: "Sequence diagram" });
+  await expect(sequence).toBeVisible();
+  await expect(sequence.locator(".seq-message")).not.toHaveCount(0);
+  await page.getByRole("button", { name: "Class", exact: true }).click();
+  const classes = page.getByRole("group", { name: "Class diagram" });
+  await expect(
+    classes.getByText("+ create_collection()", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    classes.getByText("+ Collection", { exact: true }),
+  ).toBeVisible();
+  await classes
+    .getByRole("button", { name: /api\/routes\/collections.py/ })
+    .click();
+  await expect(
+    page.getByRole("table", { name: "Diff for api/routes/collections.py" }),
+  ).toBeVisible();
+});
+
+test("diffs switch to side by side and comments render Markdown safely", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: /Save articles to collections/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: /Diffs/ }).click();
+  await page.getByRole("button", { name: "Split" }).first().click();
+  const split = page.getByRole("table", {
+    name: "Side-by-side diff for api/services/bookmarks.py",
+  });
+  await expect(split).toBeVisible();
+  // The removed signature sits on the left, its replacement on the same row to the right.
+  const row = split.locator("tr", { hasText: "async def save(user_id, url):" });
+  await expect(row).toContainText(
+    "async def save(user_id, url, collection_id):",
+  );
+  await page.reload();
+  await page.getByRole("button", { name: /Diffs/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Split" }).first(),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Unified" }).first().click();
+  await page.getByRole("button", { name: /Comments/ }).click();
+  const discussion = page.locator(".discussion-view");
+  await discussion.getByText("Automated comment · show details").click();
+  await expect(
+    discussion.getByRole("cell", { name: "reading-room" }),
+  ).toBeVisible();
+  await expect(
+    discussion.getByRole("link", { name: "Open preview" }),
+  ).toHaveAttribute("href", "https://preview.example.com/");
+  await expect(
+    discussion.locator("strong", { hasText: "reading-room" }),
+  ).toBeVisible();
+  await expect(discussion).not.toContainText("[pb]:");
+  await expect(discussion).not.toContainText("eyJoaWRk");
+  await expect(discussion).not.toContainText("alert(1)");
+  await expect(discussion.locator("script")).toHaveCount(0);
 });

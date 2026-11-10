@@ -11,7 +11,7 @@ from pydantic import Field
 
 from . import store
 from .analysis import apply_plan, compact_review, section_detail
-from .entra import entra
+from .entra import logins
 from .models import ReviewPlan
 from .providers import ProviderClient, parse_url
 
@@ -106,8 +106,11 @@ def review_progress(
     return {"sections": store.progress(review_id, sections)}
 
 
-@mcp.tool(title="Microsoft Entra connection", meta={"ui": {"visibility": ["app"]}}, annotations=LOGIN)
-async def azure_connection(
+@mcp.tool(title="Provider sign-in", meta={"ui": {"visibility": ["app"]}}, annotations=LOGIN)
+async def provider_connection(
+    provider: Annotated[
+        Literal["azure", "github"], Field(description="azure for Microsoft Entra, github for GitHub.")
+    ],
     action: Annotated[
         Literal["status", "start", "poll", "logout"],
         Field(
@@ -119,16 +122,17 @@ async def azure_connection(
         str | None, Field(description="Opaque login ID returned by start; required for poll.")
     ] = None,
 ) -> dict:
-    """Manage the local Azure DevOps sign-in; return user codes or status, never access tokens."""
+    """Manage local Azure DevOps or GitHub sign-in; return user codes or status, never access tokens."""
+    login = logins[provider]
     if action == "start":
-        return await entra.start()
+        return await login.start()
     if action == "poll":
         if not login_id:
             raise ValueError("A login ID is required to check sign-in.")
-        return await entra.poll(login_id)
+        return await login.poll(login_id)
     if action == "logout":
-        return entra.logout()
-    return entra.status()
+        return login.logout()
+    return login.status()
 
 
 @mcp.resource(
